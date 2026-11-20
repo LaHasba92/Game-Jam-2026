@@ -25,7 +25,8 @@ public class BalanceTester : MonoBehaviour
         string report = $"--- Equilibrage ({runs} parties par profil) ---";
         foreach (RunSimulator.Settings profile in profiles)
         {
-            report += "\n" + RunSimulator.Report(profile, levelManager.WallDistance, runs);
+            report += "\n" + RunSimulator.Report(profile, levelManager.WallDistance, runs,
+                canBreakWall: levelManager.CanBreakIntactWall);
         }
         Debug.Log(report);
     }

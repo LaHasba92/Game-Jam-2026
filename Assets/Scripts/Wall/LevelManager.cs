@@ -89,6 +89,15 @@ public class LevelManager : MonoBehaviour
         return walls[walls.Length - 1].wallDistance * Mathf.Pow(distanceGrowth, extra);
     }
 
+    // Le simulateur teste un premier impact sur un mur intact.
+    public bool CanBreakIntactWall(int index, WallHit hit)
+    {
+        LevelDefinition definition = walls != null && index >= 0 && index < walls.Length ? walls[index] : null;
+        int remainingHealth = definition == null ? 0
+            : WallRules.HealthAfterImpact(hit, definition.maxHealth, definition.maxHealth, definition.fullHealthBreakSpeed);
+        return WallRules.Evaluate(hit, 0f, 0f, remainingHealth).broken;
+    }
+
     // Les murs de la liste, puis des murs calcules a partir du dernier.
     private LevelDefinition GetWall(int index)
     {

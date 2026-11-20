@@ -83,7 +83,7 @@ public class WallVisualSet : MonoBehaviour
     }
 
     // Explosion depuis le point d'impact (en coordonnees du monde).
-    public void Break(Vector3 impactPoint)
+    public void Break(Vector3 impactPoint, float speedMultiplier = 1f)
     {
         intact.SetActive(false);
         broken.gameObject.SetActive(true);
@@ -103,7 +103,7 @@ public class WallVisualSet : MonoBehaviour
                 forwardStrength * (0.5f + (float)random.NextDouble()),
                 upStrength * (0.3f + (float)random.NextDouble()) + Mathf.Clamp(offset.y * 0.05f, -0.3f, 0.5f),
                 side * sideStrength * (0.6f + (float)random.NextDouble())).normalized;
-            float speed = Mathf.Lerp(minSpeed, maxSpeed, (float)random.NextDouble());
+            float speed = Mathf.Lerp(minSpeed, maxSpeed, (float)random.NextDouble()) * speedMultiplier;
             piece.linearVelocity = direction * speed;
             piece.angularVelocity = new Vector3(
                 (float)random.NextDouble() * 2f - 1f,

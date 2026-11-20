@@ -17,3 +17,5 @@ MonoBehaviour:
   zone: 3
   wallStyle: Acier (boss)
   wallPrefab: {fileID: 0}
+  maxHealth: 100
+  fullHealthBreakSpeed: 30
