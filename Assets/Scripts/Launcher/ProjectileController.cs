@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // Le vrai boulet : vol calcule (BallPhysics), pilotage gauche/droite en vol, objets du sol,
 // impact sur les murs, fin de partie et bouton « Passer ».
@@ -6,6 +7,7 @@ public class ProjectileController : MonoBehaviour
 {
     [SerializeField] private WallController wall;
     [SerializeField] private WorldStreamer world;
+    [SerializeField] private RunUpgrades upgrades;
     [SerializeField] private LevelManager levelManager;      // pour recommencer au mur 1 a chaque partie
     [SerializeField] private BallPhysics.Params physics = new BallPhysics.Params();
 
@@ -21,6 +23,10 @@ public class ProjectileController : MonoBehaviour
     [SerializeField] private float skipAfter = 5f;            // s de vol avant le bouton « Passer »
 
     public bool IsFlying { get; private set; }
+    public bool CanLaunch => isActiveAndEnabled && !IsFlying && wall != null && wall.HasWall;
+    public int CoinsPicked { get; private set; }
+    public int LastReward { get; private set; }
+    public bool HasShot => lastLaunchVelocity.sqrMagnitude > 0f;
     public int WallsBroken { get; private set; }
     public float Distance => position.x;
     public bool CanSkip => IsFlying && flightTime >= skipAfter;
@@ -39,7 +45,11 @@ public class ProjectileController : MonoBehaviour
     private float slowTimer;
     private float flightTime;
     private GroundObject lastObject;
-    private float pointerStartX;
+    private Pointer pointer;
+    private Vector2 pointerStart;
+    private Vector2 steering;
+    private bool steeringActive;
+    private int creditedReward;
     private bool hasPlayed;   // sans GameManager (sandbox) : la partie suivante repart du mur 1
     private Vector3 lastLaunchVelocity;
     private float lastBrokenWallX;
@@ -67,11 +77,16 @@ public class ProjectileController : MonoBehaviour
     // Pub « relancer » : le boulet repart du dernier mur casse avec sa vitesse de depart.
     private void Revive()
     {
-        position = new Vector3(lastBrokenWallX + 1.5f, 2f, 0f);
+        if (!HasShot) return;
+        position = WallsBroken == 0 ? startPosition : new Vector3(lastBrokenWallX + 1.5f, 2f, 0f);
+        if (world != null) world.RewindTo(position.x);
         velocity = lastLaunchVelocity;
         rolling = false;
         slowTimer = 0f;
         flightTime = 0f;
+        lastObject = null;
+        ResetSteering();
+        transform.position = position;
         IsFlying = true;
     }
 
@@ -86,6 +101,15 @@ public class ProjectileController : MonoBehaviour
     {
         IsFlying = false;
         WallsBroken = 0;
+        CoinsPicked = 0;
+        creditedReward = 0;
+        LastReward = 0;
+        if (upgrades != null)
+        {
+            physics.drag = upgrades.Value(1, physics.drag);
+            physics.bounce = upgrades.Value(4, physics.bounce);
+        }
+        ResetSteering();
         position = startPosition;
         velocity = Vector3.zero;
         rolling = false;
@@ -93,12 +117,14 @@ public class ProjectileController : MonoBehaviour
         flightTime = 0f;
         lastObject = null;
         lastBrokenWallX = 0f;
+        lastLaunchVelocity = Vector3.zero;
         transform.position = position;
     }
 
     // Appele par le LauncherController au lacher.
     public void Launch(Vector3 from, Vector3 launchVelocity)
     {
+        if (!CanLaunch) return;
         if (hasPlayed && levelManager != null && GameManager.Instance == null)
         {
             levelManager.StartNewRun();   // en attendant le GameManager de Benji
@@ -107,26 +133,49 @@ public class ProjectileController : MonoBehaviour
         ResetToLauncher();
         position = from;
         velocity = launchVelocity;
+        transform.position = position;
         lastLaunchVelocity = launchVelocity;
         IsFlying = true;
-        pointerStartX = Input.mousePosition.x;
+        ResetSteering();
+    }
+
+    private void ResetSteering()
+    {
+        pointer = null;
+        steering = Vector2.zero;
+        steeringActive = false;
     }
 
     private void Update()
     {
-        if (!IsFlying)
+        if (!IsFlying || Time.timeScale <= 0f) return;
+
+        Pointer pressed = GameplayPointer.PressedThisFrame();
+        if (pressed != null && pointer == null)
         {
-            return;
+            pointer = pressed;
+            pointerStart = pointer.position.ReadValue();
         }
-        // Le doigt (ou la souris) se repose pour piloter : on part de la ou il touche
-        if (Input.GetMouseButtonDown(0))
+
+        if (pointer != null && (!pointer.added || !pointer.press.isPressed))
+            pointer = null;
+
+        Keyboard keyboard = Keyboard.current;
+        steering = Vector2.zero;
+        if (keyboard != null)
         {
-            pointerStartX = Input.mousePosition.x;
+            steering.x = (keyboard.rightArrowKey.isPressed || keyboard.dKey.isPressed ? 1f : 0f)
+                       - (keyboard.leftArrowKey.isPressed || keyboard.aKey.isPressed ? 1f : 0f);
+            steering.y = (keyboard.upArrowKey.isPressed || keyboard.wKey.isPressed ? 1f : 0f)
+                       - (keyboard.downArrowKey.isPressed || keyboard.sKey.isPressed ? 1f : 0f);
         }
-        if (CanSkip && Input.GetKeyDown(KeyCode.Space))
-        {
+
+        if (pointer != null && steering == Vector2.zero)
+            steering = Vector2.ClampMagnitude((pointer.position.ReadValue() - pointerStart) / Mathf.Max(1f, steeringPixels), 1f);
+
+        steeringActive = pointer != null || steering != Vector2.zero;
+        if (CanSkip && keyboard?.spaceKey.wasPressedThisFrame == true)
             Skip();
-        }
     }
 
     private void FixedUpdate()
@@ -142,20 +191,41 @@ public class ProjectileController : MonoBehaviour
     private void Simulate(float dt, bool readInput)
     {
         flightTime += dt;
-        if (readInput && !rolling)
+        if (readInput && !rolling && steeringActive)
         {
-            // Pilotage direct : la vitesse de cote suit le doigt tout de suite (droite de l'ecran = -Z).
-            // Sans doigt, on garde sa vitesse de cote actuelle.
-            float input = SteeringInput();
-            if (Mathf.Abs(input) > 0.01f || Input.GetMouseButton(0))
-            {
-                velocity.z = Mathf.MoveTowards(velocity.z, -input * steeringSpeed, steeringResponse * dt);
-            }
+            // Droite de l'écran = -Z. Le geste vertical agit sur Y.
+            velocity.z = Mathf.MoveTowards(velocity.z, -steering.x * steeringSpeed, steeringResponse * dt);
+            if (Mathf.Abs(steering.y) > 0.01f)
+                velocity.y = Mathf.MoveTowards(velocity.y, steering.y * steeringSpeed, steeringResponse * dt);
         }
 
+        Vector3 previous = position;
+        bool wasRolling = rolling;
         BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
-        HandleGroundObjects();
-        HandleWall();
+        float wallX = wall.Distance - physics.radius;
+        bool reachedWall = previous.x <= wallX && position.x >= wallX;
+        if (reachedWall && position.x > previous.x)
+            position = Vector3.Lerp(previous, position, (wallX - previous.x) / (position.x - previous.x));
+
+        if (world != null)
+        {
+            // Le saut de simulation de « Passer » recycle aussi le sol et ses objets.
+            if (!readInput) world.AdvanceTo(position.x);
+            int collected = world.CollectCoins(previous, position, physics.radius);
+            CoinsPicked += collected;
+            if (collected > 0 && readInput) SfxManager.PlayCoin();
+        }
+
+        if (reachedWall)
+        {
+            bool rollingAtWall = wasRolling || (rolling && position.y <= physics.radius + 0.001f);
+            HandleWall(rollingAtWall, readInput);
+            if (!IsFlying || Time.timeScale <= 0f) return;
+        }
+        else
+        {
+            HandleGroundObjects();
+        }
 
         slowTimer = Mathf.Abs(velocity.x) < stopSpeed ? slowTimer + dt : 0f;
         if (slowTimer >= stopDelay)
@@ -164,27 +234,14 @@ public class ProjectileController : MonoBehaviour
         }
     }
 
-    // -1 a 1 : glissement du doigt depuis l'endroit ou il s'est pose, ou fleches / A-D au clavier.
-    private float SteeringInput()
-    {
-        float keys = Input.GetAxisRaw("Horizontal");
-        if (Mathf.Abs(keys) > 0.01f)
-        {
-            return keys;
-        }
-        if (!Input.GetMouseButton(0))
-        {
-            return 0f;
-        }
-        return Mathf.Clamp((Input.mousePosition.x - pointerStartX) / steeringPixels, -1f, 1f);
-    }
-
     private void HandleGroundObjects()
     {
-        if (world == null || !world.TryGetObjectAt(position, physics.radius, out GroundObject obj) || obj == lastObject)
+        if (world == null || !world.TryGetObjectAt(position, physics.radius, out GroundObject obj))
         {
+            lastObject = null;
             return;
         }
+        if (obj == lastObject) return;
         lastObject = obj;
         switch (obj.type)
         {
@@ -210,22 +267,20 @@ public class ProjectileController : MonoBehaviour
         }
     }
 
-    private void HandleWall()
+    private void HandleWall(bool rollingAtWall, bool showImpact)
     {
-        if (position.x + physics.radius < wall.Distance)
-        {
-            return;
-        }
+        transform.position = position;
         float wallX = wall.Distance;   // a lire AVANT ApplyHit : le mur suivant est place aussitot
-        wall.Elan = elan;
+        RunProgress.ReachWall(WallsBroken + 1);
+        wall.Elan = upgrades != null ? upgrades.Value(2, elan) : elan;
         WallHitResult result = wall.ApplyHit(new WallHit
         {
             impactHeight = position.y,
             impactSide = position.z,
             impactSpeed = velocity.magnitude,
-            rolling = rolling,
+            rolling = rollingAtWall,
         });
-        StartCoroutine(wall.PlayHit(result));
+        if (showImpact || result.broken) StartCoroutine(wall.PlayHit(result));
 
         if (result.broken)
         {
@@ -236,20 +291,25 @@ public class ProjectileController : MonoBehaviour
         }
         else
         {
-            velocity.x *= result.exitSpeedFactor;
-            position.x = wallX - physics.radius - 0.05f;
+            EndRun();
         }
     }
 
     // « Passer » : calcule la fin du vol d'un coup, sans affichage.
     public void Skip()
     {
+        if (!CanSkip || Time.timeScale <= 0f) return;
+        IsSkipping = true;
         for (int i = 0; i < 100000 && IsFlying; ++i)
         {
             Simulate(Time.fixedDeltaTime, false);
         }
+        if (IsFlying) EndRun();
+        IsSkipping = false;
         transform.position = position;
     }
+
+    public bool IsSkipping { get; private set; }
 
     private void EndRun()
     {
@@ -258,8 +318,14 @@ public class ProjectileController : MonoBehaviour
         {
             distance = position.x,
             wallsBroken = WallsBroken,
+            coinsPicked = CoinsPicked,
+            newRecord = RunProgress.UpdateRecord(position.x),
         };
         Debug.Log($"FIN : {WallsBroken} murs casses, {position.x:0} m");
+        int reward = RunProgress.Reward(result, upgrades != null ? upgrades.Value(3, 1f) : 1f);
+        LastReward = Mathf.Max(creditedReward, reward);
+        RunProgress.Credit(Mathf.Max(0, reward - creditedReward));
+        creditedReward = Mathf.Max(creditedReward, reward);
         RunEnded?.Invoke(result);
         GameEvents.RaiseRunEnded(result);   // le GameManager passe en Resultat
     }
