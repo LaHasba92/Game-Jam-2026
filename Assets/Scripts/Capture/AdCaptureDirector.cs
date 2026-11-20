@@ -64,8 +64,11 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public static void PlaySequence(bool record, float speed = 1f)
     {
         AdCaptureDirector director = GetOrCreate();
-        if (director == null || (record && !AdCaptureRecorder.Begin(SequenceSeconds))) return;
-        director.StartSequence(record ? 1f : speed);
+        if (director == null) return;
+        if (record)
+            AdCaptureRecorder.Begin(SequenceSeconds, () => director.StartSequence(1f));
+        else
+            director.StartSequence(speed);
     }
 
     private static AdCaptureDirector GetOrCreate()

@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.IO;
 using Unity.Collections;
+using UnityEditor;
 using UnityEditor.Media;
 using UnityEngine;
 
@@ -12,8 +13,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
     public const int FrameRate = 30;
     private const int OutputWidth = 1080;
     private const int OutputHeight = 1920;
-    private const float OutputAspect = OutputWidth / (float)OutputHeight;
-    private const float AspectTolerance = 0.02f;
+    private const float ResolutionTimeout = 10f;
     private const int Channels = 2;
     private static AdCaptureRecorder current;
 
@@ -21,9 +21,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
 
     private MediaEncoder encoder;
     private RenderTexture screenTexture;
-    private RenderTexture outputTexture;
-    private Vector2 blitScale;
-    private Vector2 blitOffset;
+    private RenderTexture uprightTexture;
     private Texture2D frameTexture;
     private float[] audioMix;
     private NativeArray<float> audioFrame;
@@ -53,21 +51,11 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         Begin(45);
     }
 
-    public static bool Begin(int seconds)
+    public static void Begin(int seconds, Action onStarted = null)
     {
-        int width = Screen.width;
-        int height = Screen.height;
-        float aspect = height > 0 ? width / (float)height : 0f;
-        if (Mathf.Abs(aspect / OutputAspect - 1f) > AspectTolerance)
-        {
-            Debug.LogWarning($"Capture pub : choisis le preset 9:16 en mode Aspect dans la vue Game. Taille actuelle : {width} × {height}.");
-            return false;
-        }
-
         StopCurrent();
         current = new GameObject("CanonPOW — Enregistrement MP4").AddComponent<AdCaptureRecorder>();
-        current.StartRecording(width, height, seconds * FrameRate);
-        return IsRecording;
+        current.StartCoroutine(current.PrepareRecording(seconds * FrameRate, onStarted));
     }
 
     public static void StopCurrent()
@@ -79,7 +67,32 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         Destroy(recorder.gameObject);
     }
 
-    private void StartRecording(int width, int height, int maxFrames)
+    private static bool HasOutputResolution => Screen.width == OutputWidth && Screen.height == OutputHeight;
+
+    private IEnumerator PrepareRecording(int maxFrames, Action onStarted)
+    {
+        if (AdCaptureGameView.TrySetResolution(OutputWidth, OutputHeight) || HasOutputResolution)
+        {
+            // La vue Game applique son nouveau rendu lors des prochaines frames.
+            float deadline = Time.realtimeSinceStartup + ResolutionTimeout;
+            int matchingFrames = 0;
+            do
+            {
+                yield return null;
+                matchingFrames = HasOutputResolution ? matchingFrames + 1 : 0;
+                if (matchingFrames == 2)
+                {
+                    StartRecording(maxFrames, onStarted);
+                    yield break;
+                }
+            } while (Time.realtimeSinceStartup < deadline);
+        }
+
+        Debug.LogWarning($"Capture pub : sélectionne 1080 × 1920 en résolution fixe dans la vue Game, puis relance l’export. Taille actuelle : {Screen.width} × {Screen.height}.");
+        StopCurrent();
+    }
+
+    private void StartRecording(int maxFrames, Action onStarted)
     {
         try
         {
@@ -90,7 +103,8 @@ public sealed class AdCaptureRecorder : MonoBehaviour
                 frameRate = new MediaRational(FrameRate),
                 width = OutputWidth,
                 height = OutputHeight,
-                includeAlpha = false
+                includeAlpha = false,
+                bitRateMode = VideoBitrateMode.High
             };
             var audio = new AudioTrackAttributes
             {
@@ -102,32 +116,29 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             audioMix = new float[AdCaptureAudio.SampleRate / FrameRate * Channels];
             audioFrame = new NativeArray<float>(audioMix.Length, Allocator.Persistent);
             AdCaptureAudio.ResetMix();
-            screenTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32)
+            screenTexture = new RenderTexture(OutputWidth, OutputHeight, 0, RenderTextureFormat.ARGB32)
             {
-                filterMode = FilterMode.Bilinear,
+                filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
             screenTexture.Create();
-            if (width != OutputWidth || height != OutputHeight)
+            // La capture de la vue Game et l’encodeur ont des conventions Y opposées sous DirectX.
+            if (SystemInfo.graphicsUVStartsAtTop)
             {
-                outputTexture = new RenderTexture(OutputWidth, OutputHeight, 0, RenderTextureFormat.ARGB32);
-                outputTexture.Create();
-                float sourceAspect = width / (float)height;
-                // Un léger recadrage absorbe l'arrondi de la vue Game sans déformer l'image.
-                blitScale = new Vector2(Mathf.Min(1f, OutputAspect / sourceAspect),
-                    Mathf.Min(1f, sourceAspect / OutputAspect));
-                blitOffset = (Vector2.one - blitScale) * 0.5f;
+                uprightTexture = new RenderTexture(OutputWidth, OutputHeight, 0, RenderTextureFormat.ARGB32);
+                uprightTexture.Create();
             }
             frameTexture = new Texture2D(OutputWidth, OutputHeight, TextureFormat.RGBA32, false);
             previousCaptureDeltaTime = Time.captureDeltaTime;
             Time.captureFramerate = FrameRate;
             clockChanged = true;
-            Debug.Log($"Capture pub : vue {width} × {height}, export {OutputWidth} × {OutputHeight}. F12 pour arrêter. {path}");
+            onStarted?.Invoke();
+            Debug.Log($"Capture pub : enregistrement natif {OutputWidth} × {OutputHeight} à {FrameRate} i/s. F12 pour arrêter. {path}");
             StartCoroutine(RecordFrames(maxFrames));
         }
         catch (Exception exception)
         {
-            Debug.LogError($"Capture pub : impossible d’ouvrir l’encodeur MP4. {exception.Message}");
+            Debug.LogError($"Capture pub : impossible de démarrer l’enregistrement MP4. {exception.Message}");
             StopCurrent();
         }
     }
@@ -138,7 +149,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         while (frames < maxFrames)
         {
             yield return endOfFrame;
-            if (Screen.width != screenTexture.width || Screen.height != screenTexture.height)
+            if (!HasOutputResolution)
             {
                 Debug.LogWarning("Capture pub : la taille de la vue Game a changé. L’enregistrement est arrêté.");
                 break;
@@ -159,12 +170,12 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         try
         {
             ScreenCapture.CaptureScreenshotIntoRenderTexture(screenTexture);
-            if (outputTexture != null)
+            if (uprightTexture != null)
             {
-                GL.sRGBWrite = QualitySettings.activeColorSpace == ColorSpace.Linear && outputTexture.sRGB;
-                Graphics.Blit(screenTexture, outputTexture, blitScale, blitOffset);
+                GL.sRGBWrite = QualitySettings.activeColorSpace == ColorSpace.Linear && uprightTexture.sRGB;
+                Graphics.Blit(screenTexture, uprightTexture, new Vector2(1f, -1f), new Vector2(0f, 1f));
             }
-            RenderTexture.active = outputTexture != null ? outputTexture : screenTexture;
+            RenderTexture.active = uprightTexture != null ? uprightTexture : screenTexture;
             frameTexture.ReadPixels(new Rect(0f, 0f, frameTexture.width, frameTexture.height), 0, 0, false);
             if (!encoder.AddFrame(frameTexture))
             {
@@ -203,10 +214,10 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             screenTexture.Release();
             Destroy(screenTexture);
         }
-        if (outputTexture != null)
+        if (uprightTexture != null)
         {
-            outputTexture.Release();
-            Destroy(outputTexture);
+            uprightTexture.Release();
+            Destroy(uprightTexture);
         }
         if (frameTexture != null) Destroy(frameTexture);
         if (audioFrame.IsCreated) audioFrame.Dispose();
@@ -219,6 +230,10 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         catch (Exception exception)
         {
             Debug.LogError($"Capture pub : la finalisation du MP4 a échoué. {exception.Message}");
+        }
+        finally
+        {
+            AdCaptureGameView.Restore();
         }
     }
 }
