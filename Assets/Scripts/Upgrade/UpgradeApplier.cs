@@ -17,7 +17,7 @@ public class UpgradeApplier : MonoBehaviour
     [SerializeField] private UpgradeDefinition momentum;      // Elan
     [SerializeField] private UpgradeDefinition bounce;
     [SerializeField] private UpgradeDefinition angle;         // facultatif : pas encore cree par Nathan
-    [SerializeField] private LauncherDefinition giantSlingshot;
+    [SerializeField] private LauncherDefinition[] launchers;   // 0 = Fronde ... 4 = Canon (Assets/_Project/Data/Launchers)
 
     [Header("Sauvegarde")]
     [SerializeField] private string saveFileName = "upgrade-test.json";   // le fichier de Nathan
@@ -51,7 +51,10 @@ public class UpgradeApplier : MonoBehaviour
         float elanValue = Value(momentum, data.momentumLevel, 0.6f);
         float bounceValue = Value(bounce, data.bounceLevel, 0.45f);
         float angleValue = angle != null ? angle.GetValue(1) : defaultMaxAngle;   // pas encore de niveau sauvegarde
-        float launcherValue = data.ownsGiantSlingshot && giantSlingshot != null ? giantSlingshot.powerMultiplier : 1f;
+        int selected = PlayerPrefs.GetInt(LauncherVisuals.SelectedKey, 0);   // le lanceur equipe en boutique
+        float launcherValue = launchers != null && selected < launchers.Length && launchers[selected] != null
+            ? launchers[selected].powerMultiplier
+            : 1f;
 
         launcher.SetUpgrades(powerValue, launcherValue, angleValue);
         projectile.SetUpgrades(dragValue, bounceValue, elanValue);
