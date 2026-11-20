@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 // Les 4 états du jeu (GDD version jam, section 6) :
 // Accueil → Visée → Vol → Résultat
@@ -56,11 +55,6 @@ public class GameManager : MonoBehaviour
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnWallBroken -= HandleWallBroken;
         GameEvents.OnRunEnded -= HandleRunEnded;
-    }
-
-    void OnDestroy()
-    {
-        if (Instance == this) Instance = null;
     }
 
     void Start()
@@ -199,7 +193,7 @@ public class GameManager : MonoBehaviour
 
     void DebugKeys()
     {
-        if (Keyboard.current?.nKey.wasPressedThisFrame != true) return;
+        if (!Input.GetKeyDown(KeyCode.N)) return;
 
         switch (CurrentState)
         {

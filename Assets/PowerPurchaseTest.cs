@@ -34,11 +34,10 @@ public class PowerPurchaseTest : MonoBehaviour
         string json = File.ReadAllText(SavePath);
         UpgradeSaveData data = JsonUtility.FromJson<UpgradeSaveData>(json);
 
-        if (data == null) return;
         coins = data.coins;
-        powerLevel = Mathf.Max(1, data.powerLevel);
-        aeroLevel = Mathf.Max(1, data.aeroLevel);
-        moneyLevel = Mathf.Max(1, data.moneyLevel);
+        powerLevel = data.powerLevel;
+        aeroLevel = data.aeroLevel;
+        moneyLevel = data.moneyLevel;
         momentumLevel = Mathf.Max(1, data.momentumLevel);
         ownsGiantSlingshot = data.ownsGiantSlingshot;
         highestBrokenWall = data.highestBrokenWall;
@@ -127,7 +126,7 @@ public class PowerPurchaseTest : MonoBehaviour
         if (GUILayout.Button("Test : terminer un tir"))
         {
             // Simule un tir de 100 m avec 10 pièces ramassées et 2 murs cassés.
-            float multiplier = money != null ? money.GetValue(moneyLevel) : 1f;
+            float multiplier = money.GetValue(moneyLevel);
             int reward = EconomyManager.CalculateReward(100f, 10, 2, multiplier);
 
             coins += reward;
@@ -181,7 +180,7 @@ public class PowerPurchaseTest : MonoBehaviour
         // Même partie pour les deux essais : 100 m, 10 pièces ramassées, 2 murs cassés.
         for (int level = 1; level <= 2; level++)
         {
-            float multiplier = money != null ? money.GetValue(level) : 1f;
+            float multiplier = money.GetValue(level);
             int reward = EconomyManager.CalculateReward(100f, 10, 2, multiplier);
             Debug.Log($"Argent niveau {level} : gain de {reward} pièces.");
         }

@@ -37,15 +37,6 @@ public class WorldStreamer : MonoBehaviour
         new SpawnRule { type = GroundObjectType.Sticky, minGap = 150, maxGap = 300, fromDistance = 530 },
     };
 
-    // Valeur de secours pour les prefabs créés avant l'ajout des pièces.
-    private static readonly SpawnRule CoinRule = new SpawnRule
-    {
-        type = GroundObjectType.Coin, minGap = 20f, maxGap = 40f,
-        minHeight = 0.35f, maxHeight = 0.35f, minCount = 5, maxCount = 10
-    };
-    private SpawnRule[] activeRules;
-    private float longestGroup;         // m : la plus longue ligne possible, pour filtrer les troncons
-
     private class Chunk
     {
         public Transform transform;
@@ -56,22 +47,14 @@ public class WorldStreamer : MonoBehaviour
     private readonly List<Chunk> chunks = new List<Chunk>();          // du plus proche au plus loin
     private readonly Dictionary<GroundObjectType, Stack<GroundObject>> pool = new Dictionary<GroundObjectType, Stack<GroundObject>>();
     private float[] nextSpawn;          // prochaine distance d'apparition, par regle
-    private System.Random random;
-    private int trackSeed;
-    private readonly HashSet<Vector3> collectedCoins = new HashSet<Vector3>();
+    private System.Random random = new System.Random();
 
     private void OnEnable()  { if (levelManager != null) levelManager.WallPlaced += OnWallPlaced; }
     private void OnDisable() { if (levelManager != null) levelManager.WallPlaced -= OnWallPlaced; }
 
     private void Awake()
     {
-        if (chunkPrefab == null)
-        {
-            Debug.LogError("WorldStreamer : prefab de sol manquant.", this);
-            enabled = false;
-            return;
-        }
-        for (int i = 0; i < Mathf.Max(2, chunksBehind + chunksAhead); ++i)
+        for (int i = 0; i < chunksBehind + chunksAhead; ++i)
         {
             chunks.Add(new Chunk { transform = Instantiate(chunkPrefab, transform).transform });
         }
@@ -80,8 +63,7 @@ public class WorldStreamer : MonoBehaviour
 
     private void OnWallPlaced(LevelDefinition wall)
     {
-        // Nouvelle partie : premier mur de la liste (ne depend pas du levelNumber saisi dans la fiche).
-        if (levelManager.WallsBroken == 0)
+        if (wall.levelNumber == 1)   // nouvelle partie
         {
             ResetTrack();
         }
@@ -90,35 +72,11 @@ public class WorldStreamer : MonoBehaviour
     // Piste neuve : troncons replaces depuis le lanceur, nouveaux objets au hasard.
     public void ResetTrack()
     {
-        trackSeed = Random.Range(0, int.MaxValue);
-        collectedCoins.Clear();
-        BuildTrack();
-    }
-
-    public void RewindTo(float distance)
-    {
-        if (chunks.Count == 0 || distance >= chunks[0].start) return;
-        BuildTrack();
-        AdvanceTo(distance);
-    }
-
-    private void BuildTrack()
-    {
-        random = new System.Random(trackSeed);
-        var configured = new List<SpawnRule>(rules ?? System.Array.Empty<SpawnRule>());
-        configured.RemoveAll(rule => rule == null);
-        if (!configured.Exists(rule => rule.type == GroundObjectType.Coin))
-            configured.Add(CoinRule);
-        activeRules = configured.ToArray();
-        nextSpawn = new float[activeRules.Length];
-        longestGroup = 0f;
-        for (int r = 0; r < activeRules.Length; ++r)
+        random = new System.Random();
+        nextSpawn = new float[rules.Length];
+        for (int r = 0; r < rules.Length; ++r)
         {
-            SpawnRule rule = activeRules[r];
-            longestGroup = Mathf.Max(longestGroup, (Mathf.Max(1, rule.maxCount) - 1) * Mathf.Abs(rule.spacing));
-            // La première ligne standard tient devant le premier mur, même si elle est réduite à cinq pièces.
-            float first = rule == CoinRule ? RandomRange(20f, 30f) : RandomRange(10f, Mathf.Max(10f, rule.maxGap));
-            nextSpawn[r] = Mathf.Max(rule.fromDistance, first);
+            nextSpawn[r] = Mathf.Max(rules[r].fromDistance, RandomRange(10f, rules[r].maxGap));
         }
         for (int i = 0; i < chunks.Count; ++i)
         {
@@ -132,14 +90,8 @@ public class WorldStreamer : MonoBehaviour
         {
             return;
         }
-        AdvanceTo(target.position.x);
-    }
-
-    public void AdvanceTo(float x)
-    {
-        if (chunks.Count < 2 || chunkLength <= 0f) return;
         // Le troncon le plus en arriere est trop loin derriere : on le renvoie tout devant.
-        while (x - chunks[0].start > chunkLength * (chunksBehind + 1))
+        while (target.position.x - chunks[0].start > chunkLength * (chunksBehind + 1))
         {
             Chunk recycled = chunks[0];
             chunks.RemoveAt(0);
@@ -159,34 +111,27 @@ public class WorldStreamer : MonoBehaviour
         }
 
         float end = start + chunkLength;
-        for (int r = 0; r < activeRules.Length; ++r)
+        for (int r = 0; r < rules.Length; ++r)
         {
-            SpawnRule rule = activeRules[r];
+            SpawnRule rule = rules[r];
             while (nextSpawn[r] < end)
             {
                 if (nextSpawn[r] >= start)
                 {
                     SpawnGroup(chunk, rule, nextSpawn[r]);
                 }
-                nextSpawn[r] += Mathf.Max(1f, RandomRange(rule.minGap, rule.maxGap));
+                nextSpawn[r] += RandomRange(rule.minGap, rule.maxGap);
             }
         }
     }
 
     private void SpawnGroup(Chunk chunk, SpawnRule rule, float distance)
     {
-        int minimum = Mathf.Max(1, rule.minCount);
-        int count = random.Next(minimum, Mathf.Max(minimum, rule.maxCount) + 1);
+        int count = random.Next(rule.minCount, rule.maxCount + 1);
         float height = RandomRange(rule.minHeight, rule.maxHeight);
         float half = corridorWidth * 0.5f - 0.5f;
         float side = RandomRange(-half, half);
         float groupEnd = distance + (count - 1) * rule.spacing;
-        // Réduit une ligne de pièces si elle rencontre la zone de sécurité d'un mur.
-        while (rule.type == GroundObjectType.Coin && count > minimum && IsNearAWall(distance, groupEnd))
-        {
-            count--;
-            groupEnd = distance + (count - 1) * rule.spacing;
-        }
         if (IsNearAWall(distance, groupEnd))
         {
             return;   // on ne pose rien contre un mur (ni a travers)
@@ -194,9 +139,8 @@ public class WorldStreamer : MonoBehaviour
         for (int i = 0; i < count; ++i)
         {
             GroundObject obj = Get(rule.type);
-            if (obj == null) return;
             obj.transform.position = new Vector3(distance + i * rule.spacing, height, side);
-            obj.gameObject.SetActive(rule.type != GroundObjectType.Coin || !collectedCoins.Contains(obj.transform.position));
+            obj.gameObject.SetActive(true);
             chunk.objects.Add(obj);
         }
     }
@@ -208,8 +152,7 @@ public class WorldStreamer : MonoBehaviour
         {
             return false;
         }
-        // Garde-fou : une fiche mal reglee (distance 0) ne doit pas bloquer le jeu dans une boucle infinie.
-        for (int i = 0; i < 1000; ++i)
+        for (int i = 0; ; ++i)
         {
             float wallX = levelManager.WallDistance(i);
             if (wallX - clearBeforeWall > to)
@@ -221,7 +164,6 @@ public class WorldStreamer : MonoBehaviour
                 return true;
             }
         }
-        return false;
     }
 
     // --- Pour Andy : trouver les objets que le boulet touche ---------------------------------
@@ -239,7 +181,7 @@ public class WorldStreamer : MonoBehaviour
             }
             foreach (GroundObject obj in chunk.objects)
             {
-                if (!obj.gameObject.activeSelf || obj.type == GroundObjectType.Coin)
+                if (!obj.gameObject.activeSelf)
                 {
                     continue;
                 }
@@ -252,33 +194,6 @@ public class WorldStreamer : MonoBehaviour
             }
         }
         return found != null;
-    }
-
-    // Ramasse toutes les pièces traversées, même entre deux pas de simulation.
-    public int CollectCoins(Vector3 from, Vector3 to, float ballRadius)
-    {
-        int count = 0;
-        Vector3 path = to - from;
-        float lengthSquared = path.sqrMagnitude;
-        float minX = Mathf.Min(from.x, to.x) - ballRadius - 5f;
-        float maxX = Mathf.Max(from.x, to.x) + ballRadius + 5f;
-        foreach (Chunk chunk in chunks)
-        {
-            // Seuls les troncons proches du boulet : « Passer » appelle ceci des milliers de fois dans une frame.
-            if (maxX < chunk.start || minX > chunk.start + chunkLength + longestGroup) continue;
-            foreach (GroundObject obj in chunk.objects)
-            {
-                if (obj.type != GroundObjectType.Coin || !obj.gameObject.activeSelf) continue;
-                Vector3 offset = obj.transform.position - from;
-                float t = lengthSquared > 0f ? Mathf.Clamp01(Vector3.Dot(offset, path) / lengthSquared) : 0f;
-                float reach = obj.radius + ballRadius;
-                if ((offset - path * t).sqrMagnitude > reach * reach) continue;
-                collectedCoins.Add(obj.transform.position);
-                Consume(obj);
-                count++;
-            }
-        }
-        return count;
     }
 
     // Une piece ramassee (ou un ballon utilise) disparait jusqu'au prochain recyclage.
@@ -295,9 +210,9 @@ public class WorldStreamer : MonoBehaviour
         {
             return stack.Pop();
         }
-        foreach (GroundObject prefab in objectPrefabs ?? System.Array.Empty<GroundObject>())
+        foreach (GroundObject prefab in objectPrefabs)
         {
-            if (prefab != null && prefab.type == type)
+            if (prefab.type == type)
             {
                 return Instantiate(prefab, transform);
             }

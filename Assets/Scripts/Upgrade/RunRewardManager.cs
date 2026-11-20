@@ -33,13 +33,6 @@ public class RunRewardManager : MonoBehaviour
 
     private void HandleRunEnded(RunResult result)
     {
-        // Si le HUD RunHud est dans la scene, les pieces sont deja creditees par le ProjectileController
-        // (RunProgress) : on ne les compte pas une deuxieme fois.
-        if (FindFirstObjectByType<RunHud>(FindObjectsInactive.Include) != null)
-        {
-            return;
-        }
-
         UpgradeSaveData data = Load();
         float multiplier = money != null ? money.GetValue(Mathf.Max(1, data.moneyLevel)) : 1f;
 

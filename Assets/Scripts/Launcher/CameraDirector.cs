@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 // La camera du jeu, sans Cinemachine : derriere le lanceur pendant la visee, puis elle suit
@@ -16,16 +17,13 @@ public class CameraDirector : MonoBehaviour
     private Vector3 holdPoint;
     private float holdUntil;
     private float shake;
-    private Vector3 smoothedPosition;
 
-    private void Awake() => smoothedPosition = transform.position;
-
-    private void OnEnable()  { if (wall != null) wall.HitResolved += OnWallHit; }
-    private void OnDisable() { if (wall != null) wall.HitResolved -= OnWallHit; }
+    private void OnEnable()  { wall.HitResolved += OnWallHit; }
+    private void OnDisable() { wall.HitResolved -= OnWallHit; }
 
     private void OnWallHit(WallHitResult result)
     {
-        if (result.broken && projectile != null && !projectile.IsSkipping)
+        if (result.broken)
         {
             holdPoint = projectile.transform.position;
             holdUntil = Time.time + holdOnBreak;
@@ -35,13 +33,6 @@ public class CameraDirector : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (projectile == null || Time.deltaTime <= 0f) return;
-        if (GameManager.Instance?.CurrentState == GameState.Aiming || GameManager.Instance?.CurrentState == GameState.Home)
-        {
-            holdUntil = 0f;
-            shake = 0f;
-        }
-
         Vector3 target;
         Vector3 lookAt;
         if (Time.time < holdUntil)
@@ -61,8 +52,7 @@ public class CameraDirector : MonoBehaviour
         }
 
         float t = 1f - Mathf.Exp(-smoothing * Time.deltaTime);
-        smoothedPosition = Vector3.Lerp(smoothedPosition, target, t);
-        transform.position = smoothedPosition + Random.insideUnitSphere * shake;
+        transform.position = Vector3.Lerp(transform.position, target, t) + Random.insideUnitSphere * shake;
         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookAt - transform.position), t);
         shake = Mathf.MoveTowards(shake, 0f, Time.deltaTime);
     }

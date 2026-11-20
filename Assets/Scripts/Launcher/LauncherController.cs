@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 // La visee : poser le doigt dans la moitie basse de l'ecran, glisser pour viser
 // (gauche/droite = direction, haut/bas = angle, borne par l'amelioration Angle),
@@ -7,7 +6,6 @@ using UnityEngine.InputSystem;
 public class LauncherController : MonoBehaviour
 {
     [SerializeField] private ProjectileController projectile;
-    [SerializeField] private RunUpgrades upgrades;
     [SerializeField] private Transform launchPoint;            // d'ou part le boulet
     [SerializeField] private float dotSpacing = 0.08f;         // s entre deux points des pointilles
     [SerializeField] private float dotSize = 0.15f;            // m
@@ -48,98 +46,55 @@ public class LauncherController : MonoBehaviour
     public event System.Action<float> ShotFired;   // la puissance (multiplicateur de jauge)
 
     private readonly System.Collections.Generic.List<Transform> dots = new System.Collections.Generic.List<Transform>();
-    private Pointer pointer;
-    private Vector2 pointerStart;
-    public bool ShowDebugGauge { get; set; } = true;
+    private Vector3 pointerStart;
     private float aimStartTime;
     private float startElevation;
     private float startSide;
 
-    private void OnDisable()
-    {
-        CancelAim();
-    }
-
-    private void CancelAim()
-    {
-        IsAiming = false;
-        pointer = null;
-        SetPreviewVisible(false);
-        SfxManager.SetTension(0f);
-    }
-
     private void Update()
     {
-        if (Time.timeScale <= 0f)
+        if (projectile.IsFlying)
         {
-            if (IsAiming) CancelAim();
+            SetPreviewVisible(false);
             return;
         }
+
         bool canAim = GameManager.Instance == null || GameManager.Instance.CurrentState == GameState.Aiming;
-        if (!canAim || projectile == null || !projectile.CanLaunch || launchPoint == null)
+        if (!IsAiming && canAim && Input.GetMouseButtonDown(0) && Input.mousePosition.y < Screen.height * 0.5f)
         {
-            if (IsAiming) CancelAim();
-            return;
-        }
-
-        if (!IsAiming)
-        {
-            pointer = GameplayPointer.PressedThisFrame();
-            if (pointer == null) return;
-            pointerStart = pointer.position.ReadValue();
-            if (pointerStart.y >= Screen.height * 0.5f)
-            {
-                pointer = null;
-                return;
-            }
-
             IsAiming = true;
+            pointerStart = Input.mousePosition;
             aimStartTime = Time.time;
             startElevation = Elevation;
             startSide = Side;
         }
-
-        if (!pointer.added)
+        if (!IsAiming)
         {
-            CancelAim();
             return;
         }
 
-        Vector2 delta = pointer.position.ReadValue() - pointerStart;
+        // Glisser = viser, en partant de la visee precedente
+        Vector3 delta = Input.mousePosition - pointerStart;
         float vertical = invertVertical ? -delta.y : delta.y;
-        float aimPixels = Mathf.Max(1f, pixelsForFullAim);
         float range = maxElevation - minElevation;
-        Elevation = Mathf.Clamp(startElevation + vertical / aimPixels * range, minElevation, maxElevation);
-        Side = Mathf.Clamp(startSide - delta.x / aimPixels * maxSide * 2f, -maxSide, maxSide);
+        Elevation = Mathf.Clamp(startElevation + vertical / pixelsForFullAim * range, minElevation, maxElevation);
+        Side = Mathf.Clamp(startSide - delta.x / pixelsForFullAim * maxSide * 2f, -maxSide, maxSide);
 
-        Gauge = Mathf.PingPong((Time.time - aimStartTime) / Mathf.Max(0.01f, gaugePeriod), 1f);
-        SfxManager.SetTension(Gauge);
+        Gauge = Mathf.PingPong((Time.time - aimStartTime) / gaugePeriod, 1f);
+        DrawPreview();
 
-        if (pointer.press.wasReleasedThisFrame)
+        if (Input.GetMouseButtonUp(0))
         {
-            bool canceled = pointer is Touchscreen touch &&
-                            touch.primaryTouch.phase.ReadValue() == UnityEngine.InputSystem.TouchPhase.Canceled;
-            if (canceled) CancelAim();
-            else Fire();
-        }
-        else if (!pointer.press.isPressed)
-        {
-            CancelAim();
-        }
-        else
-        {
-            DrawPreview();
+            Fire();
         }
     }
 
-    private float GaugeMultiplier => IsPerfect ? maxGaugeMultiplier
-        : Mathf.Lerp(minGaugeMultiplier, 1f, Gauge / Mathf.Max(0.01f, 1f - perfectZone));
-
     private Vector3 LaunchVelocity()
     {
-        float power = upgrades != null ? upgrades.Value(0, basePower) : basePower;
-        float multiplier = upgrades != null ? upgrades.LauncherMultiplier : launcherMultiplier;
-        float speed = power * GaugeMultiplier * multiplier;
+        float gaugeMultiplier = IsPerfect
+            ? maxGaugeMultiplier
+            : Mathf.Lerp(minGaugeMultiplier, 1f, Gauge / (1f - perfectZone));
+        float speed = basePower * gaugeMultiplier * launcherMultiplier;
         // Tout droit (+X), tourne vers le haut de l'angle de tir, puis sur le cote
         Vector3 direction = Quaternion.Euler(0f, Side, Elevation) * Vector3.right;
         return direction * speed;
@@ -147,17 +102,18 @@ public class LauncherController : MonoBehaviour
 
     private void Fire()
     {
-        CancelAim();
+        IsAiming = false;
+        SetPreviewVisible(false);
         Vector3 launchVelocity = LaunchVelocity();
         projectile.Launch(launchPoint.position, launchVelocity);
-        float gaugeMultiplier = GaugeMultiplier;
+        float gaugeMultiplier = launchVelocity.magnitude / (basePower * launcherMultiplier);
         ShotFired?.Invoke(gaugeMultiplier);
         GameEvents.RaiseShotFired(new ShotInfo
         {
             direction = Side,
             angle = Elevation,
             gaugeMultiplier = gaugeMultiplier,
-            launcherIndex = upgrades != null ? upgrades.SelectedIndex + 1 : 1,
+            launcherIndex = 1,   // plus tard : le lanceur actif (Nathan)
         });
     }
 
@@ -167,7 +123,7 @@ public class LauncherController : MonoBehaviour
     {
         const float dt = 0.02f;
         int stepsPerDot = Mathf.Max(1, Mathf.RoundToInt(dotSpacing / dt));
-        int dotCount = Mathf.CeilToInt(previewDuration / Mathf.Max(dt, dotSpacing));
+        int dotCount = Mathf.CeilToInt(previewDuration / dotSpacing);
         Vector3 position = launchPoint.position;
         Vector3 velocity = LaunchVelocity();
         bool rolling = false;
@@ -225,7 +181,7 @@ public class LauncherController : MonoBehaviour
     // Affichage de debug en attendant l'interface de Hugo : jauge verticale sur le cote gauche.
     private void OnGUI()
     {
-        if (!ShowDebugGauge || !IsAiming)
+        if (!IsAiming)
         {
             return;
         }
