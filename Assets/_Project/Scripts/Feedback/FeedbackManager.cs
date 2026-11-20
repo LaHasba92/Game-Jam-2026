@@ -7,7 +7,8 @@ public class FeedbackManager : MonoBehaviour
     [SerializeField] private ProjectileController projectile;
     [SerializeField, Min(0f)] private float freezeSeconds = 0.05f;
     private Coroutine freeze;
-    private float previousScale;
+    private static int timeHolds;
+    private static float previousScale;
 
     private void OnEnable()
     {
@@ -22,20 +23,21 @@ public class FeedbackManager : MonoBehaviour
         if (freeze != null)
         {
             StopCoroutine(freeze);
-            RestoreTime();
+            freeze = null;
+            ReleaseTime();
         }
     }
 
     private void OnShot(ShotInfo shot)
     {
-#if UNITY_ANDROID
+#if UNITY_ANDROID && !UNITY_EDITOR
         Handheld.Vibrate();
 #endif
     }
 
     private void OnWallHit(WallHitResult hit)
     {
-        if (!hit.broken || freezeSeconds <= 0f || Time.timeScale <= 0f ||
+        if (!hit.broken || freezeSeconds <= 0f || freeze != null || Time.timeScale <= 0f ||
             (projectile != null && projectile.IsSkipping))
             return;
 
@@ -44,15 +46,23 @@ public class FeedbackManager : MonoBehaviour
 
     private IEnumerator Freeze()
     {
-        previousScale = Time.timeScale;
-        Time.timeScale = 0f;
+        HoldTime();
         yield return new WaitForSecondsRealtime(freezeSeconds);
-        RestoreTime();
+        freeze = null;
+        ReleaseTime();
     }
 
-    private void RestoreTime()
+    // Le gel d'impact et la pause UI peuvent se chevaucher.
+    internal static void HoldTime()
     {
-        if (Time.timeScale == 0f) Time.timeScale = previousScale;
-        freeze = null;
+        if (timeHolds == 0) previousScale = Time.timeScale;
+        timeHolds++;
+        Time.timeScale = 0f;
+    }
+
+    internal static void ReleaseTime()
+    {
+        timeHolds--;
+        if (timeHolds == 0 && Time.timeScale == 0f) Time.timeScale = previousScale;
     }
 }

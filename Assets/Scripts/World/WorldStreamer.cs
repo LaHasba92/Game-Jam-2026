@@ -44,6 +44,7 @@ public class WorldStreamer : MonoBehaviour
         minHeight = 0.35f, maxHeight = 0.35f, minCount = 5, maxCount = 10
     };
     private SpawnRule[] activeRules;
+    private float longestGroup;         // m : la plus longue ligne possible, pour filtrer les troncons
 
     private class Chunk
     {
@@ -79,7 +80,8 @@ public class WorldStreamer : MonoBehaviour
 
     private void OnWallPlaced(LevelDefinition wall)
     {
-        if (wall.levelNumber == 1)   // nouvelle partie
+        // Nouvelle partie : premier mur de la liste (ne depend pas du levelNumber saisi dans la fiche).
+        if (levelManager.WallsBroken == 0)
         {
             ResetTrack();
         }
@@ -109,9 +111,11 @@ public class WorldStreamer : MonoBehaviour
             configured.Add(CoinRule);
         activeRules = configured.ToArray();
         nextSpawn = new float[activeRules.Length];
+        longestGroup = 0f;
         for (int r = 0; r < activeRules.Length; ++r)
         {
             SpawnRule rule = activeRules[r];
+            longestGroup = Mathf.Max(longestGroup, (Mathf.Max(1, rule.maxCount) - 1) * Mathf.Abs(rule.spacing));
             // La première ligne standard tient devant le premier mur, même si elle est réduite à cinq pièces.
             float first = rule == CoinRule ? RandomRange(20f, 30f) : RandomRange(10f, Mathf.Max(10f, rule.maxGap));
             nextSpawn[r] = Mathf.Max(rule.fromDistance, first);
@@ -204,7 +208,8 @@ public class WorldStreamer : MonoBehaviour
         {
             return false;
         }
-        for (int i = 0; ; ++i)
+        // Garde-fou : une fiche mal reglee (distance 0) ne doit pas bloquer le jeu dans une boucle infinie.
+        for (int i = 0; i < 1000; ++i)
         {
             float wallX = levelManager.WallDistance(i);
             if (wallX - clearBeforeWall > to)
@@ -216,6 +221,7 @@ public class WorldStreamer : MonoBehaviour
                 return true;
             }
         }
+        return false;
     }
 
     // --- Pour Andy : trouver les objets que le boulet touche ---------------------------------
@@ -254,8 +260,12 @@ public class WorldStreamer : MonoBehaviour
         int count = 0;
         Vector3 path = to - from;
         float lengthSquared = path.sqrMagnitude;
+        float minX = Mathf.Min(from.x, to.x) - ballRadius - 5f;
+        float maxX = Mathf.Max(from.x, to.x) + ballRadius + 5f;
         foreach (Chunk chunk in chunks)
         {
+            // Seuls les troncons proches du boulet : « Passer » appelle ceci des milliers de fois dans une frame.
+            if (maxX < chunk.start || minX > chunk.start + chunkLength + longestGroup) continue;
             foreach (GroundObject obj in chunk.objects)
             {
                 if (obj.type != GroundObjectType.Coin || !obj.gameObject.activeSelf) continue;

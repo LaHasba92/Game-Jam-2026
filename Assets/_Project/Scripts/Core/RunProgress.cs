@@ -13,7 +13,7 @@ public static class RunProgress
 
     public static bool UpdateRecord(float distance)
     {
-        if (distance <= Record) return false;
+        if (float.IsNaN(distance) || float.IsInfinity(distance) || distance <= Record) return false;
         PlayerPrefs.SetFloat(RecordKey, distance);
         PlayerPrefs.Save();
         return true;
@@ -32,13 +32,16 @@ public static class RunProgress
     public static void Credit(int amount)
     {
         if (amount <= 0) return;
-        SetCoins(Coins + amount);
+        int current = Coins;
+        int total = (int)System.Math.Min(int.MaxValue, (long)current + amount);
+        if (total != current) SetCoins(total);
     }
 
     public static bool Spend(int amount)
     {
-        if (amount < 0 || amount > Coins) return false;
-        SetCoins(Coins - amount);
+        int current = Coins;
+        if (amount < 0 || amount > current) return false;
+        if (amount > 0) SetCoins(current - amount);
         return true;
     }
 

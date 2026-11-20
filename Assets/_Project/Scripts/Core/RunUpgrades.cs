@@ -8,9 +8,8 @@ public class RunUpgrades : MonoBehaviour
     private const string SelectedKey = "CanonPOW.SelectedLauncher";
 
     private const string FreeUpgradeKey = "CanonPOW.LastFreeUpgrade";
-    public bool CanGetFreeUpgrade => UpgradeCount > 0 &&
-        (!long.TryParse(PlayerPrefs.GetString(FreeUpgradeKey), out long ticks) ||
-         System.DateTime.UtcNow.Ticks - ticks >= System.TimeSpan.TicksPerMinute * 3);
+    // Toutes les 3 min (GDD), seulement s'il reste une stat qui peut encore monter.
+    public bool CanGetFreeUpgrade => FreeUpgradeTimerReady() && LeastUpgraded() >= 0;
 
     public int UpgradeCount => upgrades?.Length ?? 0;
     public int LauncherCount => launchers?.Length ?? 0;
@@ -20,6 +19,15 @@ public class RunUpgrades : MonoBehaviour
     public LauncherDefinition LauncherAt(int index) => index >= 0 && index < LauncherCount ? launchers[index] : null;
     public int Level(int index) => Mathf.Max(1, PlayerPrefs.GetInt($"CanonPOW.Upgrade.{index}", 1));
     public bool OwnsLauncher(int index) => index == 0 || PlayerPrefs.GetInt($"CanonPOW.Launcher.{index}") == 1;
+
+    // Vrai quand le niveau suivant ne change plus la valeur : plafond du GDD atteint (Élan 85 %, Rebond 0,85, Aéro 0,02).
+    public bool IsMaxed(int index)
+    {
+        UpgradeDefinition definition = UpgradeAt(index);
+        if (definition == null) return true;
+        int level = Level(index);
+        return Mathf.Approximately(definition.GetValue(level + 1), definition.GetValue(level));
+    }
 
     public float Value(int index, float fallback)
     {
@@ -31,22 +39,37 @@ public class RunUpgrades : MonoBehaviour
     {
         UpgradeDefinition definition = UpgradeAt(index);
         int level = Level(index);
-        if (definition == null || !RunProgress.Spend(definition.GetCost(level))) return;
+        if (definition == null || IsMaxed(index) || !RunProgress.Spend(definition.GetCost(level))) return;
         RaiseLevel(index);
     }
 
     public void GetFreeUpgrade()
     {
-        if (!CanGetFreeUpgrade) return;
-        int lowest = -1;
-        for (int i = 0; i < UpgradeCount; i++)
-        {
-            if (UpgradeAt(i) != null && (lowest < 0 || Level(i) < Level(lowest))) lowest = i;
-        }
+        if (!FreeUpgradeTimerReady()) return;
+        int lowest = LeastUpgraded();
         if (lowest < 0) return;
 
         PlayerPrefs.SetString(FreeUpgradeKey, System.DateTime.UtcNow.Ticks.ToString());
         RaiseLevel(lowest);
+    }
+
+    // La stat la moins améliorée parmi celles qui ne sont pas au plafond, -1 si aucune.
+    private int LeastUpgraded()
+    {
+        int lowest = -1;
+        for (int i = 0; i < UpgradeCount; i++)
+        {
+            if (!IsMaxed(i) && (lowest < 0 || Level(i) < Level(lowest))) lowest = i;
+        }
+        return lowest;
+    }
+
+    private static bool FreeUpgradeTimerReady()
+    {
+        if (!long.TryParse(PlayerPrefs.GetString(FreeUpgradeKey), out long ticks)) return true;
+        long elapsed = System.DateTime.UtcNow.Ticks - ticks;
+        // Horloge du téléphone remise en arrière : on ne bloque pas le bonus pendant des jours.
+        return elapsed < 0 || elapsed >= System.TimeSpan.TicksPerMinute * 3;
     }
 
     private void RaiseLevel(int index)

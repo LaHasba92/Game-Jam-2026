@@ -40,6 +40,8 @@ public class SfxManager : MonoBehaviour
     public float tensionPitchMin = 0.8f, tensionPitchMax = 1.6f;
     [Tooltip("Durée de montée si personne n'appelle SetTension")]
     public float tensionRiseTime = 1.5f;
+    [Tooltip("Sans jauge (personne n'appelle SetTension) : la tension joue seule pendant tout l'état Visée")]
+    public bool autoTension = false;
 
     const int PoolSize = 8;
     AudioSource[] pool;
@@ -48,6 +50,10 @@ public class SfxManager : MonoBehaviour
     bool aiming, tensionDriven;
     float aimTime;
     int lastCoins = -1;
+    int lastTensionFrame = -10;
+    AudioClip lastClip;
+    int lastClipFrame = -1;
+    int lastWallSoundFrame = -1;
 
     void Awake()
     {
@@ -67,6 +73,9 @@ public class SfxManager : MonoBehaviour
         tensionSource.playOnAwake = false;
         tensionSource.loop = true;
         tensionSource.spatialBlend = 0f;
+
+        // Sinon le premier gain de la session (lastCoins = -1) ne sonnerait pas.
+        lastCoins = RunProgress.Coins;
     }
 
     void OnEnable()
@@ -96,11 +105,26 @@ public class SfxManager : MonoBehaviour
 
     void Update()
     {
-        // Si la jauge n'envoie rien, la tension monte toute seule avec le temps
-        if (aiming && !tensionDriven)
+        if (Instance != this) return;
+
+        // Pause (timeScale 0) : la tension se coupe, la jauge la relancera au prochain geste.
+        if (Time.timeScale <= 0f)
         {
+            if (tensionSource.isPlaying) tensionSource.Stop();
+            return;
+        }
+
+        if (tensionDriven)
+        {
+            // La jauge n'appelle plus SetTension (doigt levé, visée annulée) : silence.
+            if (tensionSource.isPlaying && Time.frameCount - lastTensionFrame > 1) tensionSource.Stop();
+        }
+        else if (aiming && autoTension)
+        {
+            // Sans jauge, la tension monte toute seule avec le temps
             aimTime += Time.deltaTime;
             ApplyTension(Mathf.Clamp01(aimTime / Mathf.Max(0.01f, tensionRiseTime)));
+            if (!tensionSource.isPlaying) PlayTensionLoop();
         }
     }
 
@@ -121,8 +145,7 @@ public class SfxManager : MonoBehaviour
     public static void SetTension(float t)
     {
         if (Instance == null || !Instance.isActiveAndEnabled) return;
-        Instance.tensionDriven = true;
-        Instance.ApplyTension(t);
+        Instance.DriveTension(t);
     }
 
     public static void PlayClick() => Play(Instance != null ? Instance.uiClick : null);
@@ -143,6 +166,9 @@ public class SfxManager : MonoBehaviour
 
     void HandleWallHit(WallHitResult result)
     {
+        // « Passer » simule tous les murs dans la même frame : un seul son.
+        if (lastWallSoundFrame == Time.frameCount) return;
+        lastWallSoundFrame = Time.frameCount;
         Play(result.broken ? wallBreak : wallBounce);
     }
 
@@ -168,20 +194,40 @@ public class SfxManager : MonoBehaviour
     void PlayClip(AudioClip clip, float volumeScale)
     {
         if (clip == null) return;
+        // Le même son deux fois dans la frame (pièces sur plusieurs pas physiques, double clic) : une seule fois.
+        if (clip == lastClip && Time.frameCount == lastClipFrame) return;
+        lastClip = clip;
+        lastClipFrame = Time.frameCount;
         AudioSource src = pool[next];
         next = (next + 1) % PoolSize;
         src.pitch = 1f + Random.Range(-pitchVariation, pitchVariation);
         src.PlayOneShot(clip, volume * volumeScale);
     }
 
+    // Entrée dans l'état Visée. Le son démarre avec la jauge (SetTension), pas avant que le doigt se pose.
     void StartTension()
     {
         aiming = true;
         tensionDriven = false;
         aimTime = 0f;
+        ApplyTension(0f);
+        if (autoTension) PlayTensionLoop();
+    }
+
+    void DriveTension(float t)
+    {
+        tensionDriven = true;
+        lastTensionFrame = Time.frameCount;
+        ApplyTension(t);
+        // t = 0 vient aussi de l'annulation de la visée : on ne relance pas le son pour ça.
+        bool canAim = GameManager.Instance == null || GameManager.Instance.CurrentState == GameState.Aiming;
+        if (t > 0f && canAim && Time.timeScale > 0f && !tensionSource.isPlaying) PlayTensionLoop();
+    }
+
+    void PlayTensionLoop()
+    {
         if (tensionLoop == null) return;
         tensionSource.clip = tensionLoop;
-        ApplyTension(0f);
         tensionSource.Play();
     }
 
