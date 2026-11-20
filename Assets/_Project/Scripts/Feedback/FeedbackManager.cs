@@ -17,6 +17,11 @@ public class FeedbackManager : MonoBehaviour
     [SerializeField] private int popupFontSize = 90;
     [SerializeField] private Color popupColor = new Color(1f, 0.85f, 0.1f);
 
+    [Header("HUD de debug (en attendant le HUD de Hugo)")]
+    [SerializeField] private bool showHud = true;
+    [SerializeField] private ProjectileController projectile;   // l'objet Ball
+    [SerializeField] private int hudFontSize = 60;
+
     [Header("Lacher")]
     [SerializeField] private Transform launcherVisual;     // la fronde (facultatif)
     [SerializeField] private float launcherPunch = 1.1f;   // echelle 1,1 puis 1,0
@@ -27,6 +32,7 @@ public class FeedbackManager : MonoBehaviour
     private float popupStart = -10f;
     private Vector3 launcherBaseScale = Vector3.one;
     private GUIStyle popupStyle;
+    private GUIStyle hudStyle;
 
     private void OnEnable()
     {
@@ -120,6 +126,7 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnGUI()
     {
+        DrawHud();
         float age = Time.unscaledTime - popupStart;
         if (age > popupDuration || string.IsNullOrEmpty(popupText))
         {
@@ -146,5 +153,28 @@ public class FeedbackManager : MonoBehaviour
         GUI.color = new Color(popupColor.r, popupColor.g, popupColor.b, alpha);
         GUI.Label(area, popupText, popupStyle);
         GUI.color = Color.white;
+    }
+
+    // Murs casses en gros en haut de l'ecran, et la distance dessous, pendant la visee et le vol.
+    private void DrawHud()
+    {
+        if (!showHud || projectile == null)
+        {
+            return;
+        }
+        GameState state = GameManager.Instance != null ? GameManager.Instance.CurrentState : GameState.Flying;
+        if (state != GameState.Aiming && state != GameState.Flying)
+        {
+            return;
+        }
+        if (hudStyle == null)
+        {
+            hudStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, fontStyle = FontStyle.Bold };
+        }
+        hudStyle.fontSize = hudFontSize;
+        GUI.color = Color.white;
+        GUI.Label(new Rect(0f, 20f, Screen.width, hudFontSize * 1.3f), $"{projectile.WallsBroken} MURS", hudStyle);
+        hudStyle.fontSize = hudFontSize / 2;
+        GUI.Label(new Rect(0f, 20f + hudFontSize * 1.3f, Screen.width, hudFontSize), $"{Mathf.Max(0f, projectile.Distance):N0} m", hudStyle);
     }
 }
