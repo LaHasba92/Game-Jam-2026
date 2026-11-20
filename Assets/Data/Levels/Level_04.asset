@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dac6bf9a7c904cf4c9cba806505572a8, type: 3}
+  m_Name: Level_04
+  m_EditorClassIdentifier: Assembly-CSharp::LevelDefinition
+  levelNumber: 4
+  wallDistance: 76
+  zone: 1
+  wallStyle: Bois renforce
+  wallPrefab: {fileID: 0}
