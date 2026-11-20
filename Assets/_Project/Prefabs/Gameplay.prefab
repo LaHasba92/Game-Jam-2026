@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a86b61b662a7be54c9daf4ff7b92b87f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WallController
-  defaultWallPrefab: {fileID: 9099409897368018457, guid: 3dade7ea473138c4590e10ad03419436, type: 3}
+  defaultWallPrefab: {fileID: 7154369988051276021, guid: b9ef7a5af3e343efa698a5531de1dca2, type: 3}
   missMarker: {fileID: 0}
   reboundFactor: -0.3
   corridorHeight: 25

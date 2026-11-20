@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
 
+public enum WallSurface { Brick, Glass, Steel }
+
 // A mettre a la racine d'un prefab de mur (un par style : bois, briques...).
 // Le prefab contient : Intact (le mur entier) et Broken (les morceaux, avec Rigidbody).
 // Pivot en bas au centre, face vers -X.
@@ -10,7 +12,8 @@ public class WallVisualSet : MonoBehaviour
     [SerializeField] private Transform broken;
     [SerializeField] private float wallHeight = 8f;     // hauteur du modele, en m
     [SerializeField] private float wallWidth = 6f;      // largeur du modele, en m
-    [Header("Explosion : identique sur tous les murs, vers les cotes et le haut")]
+    [SerializeField] private WallSurface surface;
+    [Header("Explosion vers les côtés et le haut")]
     [SerializeField] private float minSpeed = 14f;         // m/s des morceaux
     [SerializeField] private float maxSpeed = 24f;
     [SerializeField] private float sideStrength = 1f;      // part de la poussee vers les cotes (Z)
@@ -26,12 +29,19 @@ public class WallVisualSet : MonoBehaviour
     private Vector3[] startScales;
     private Quaternion[] startRotations;
     private Coroutine hideRoutine;
+    private AudioSource breakSource;
+    private AudioClip breakClip;
 
     public float WallHeight => wallHeight;
     public float WallWidth => wallWidth;
 
     // Vrai pendant que les debris volent : ce mur ne peut pas encore etre reutilise.
     public bool IsBusy => hideRoutine != null;
+
+    public static AudioClip LoadBreakClip(WallSurface material)
+    {
+        return Resources.Load<AudioClip>($"WallAudio/{material}Break");
+    }
 
     private void Awake()
     {
@@ -88,11 +98,12 @@ public class WallVisualSet : MonoBehaviour
         intact.SetActive(false);
         broken.gameObject.SetActive(true);
         Physics.SyncTransforms();
+        PlayBreakSound();
 
         // Chaque morceau part de son cote du point d'impact (gauche ou droite), vers le haut,
         // un peu vers l'avant mais jamais vers la camera (-X). On donne directement une VITESSE :
         // le resultat ne depend ni de la masse, ni de la duree d'une image. Avec la meme graine,
-        // l'explosion est exactement la meme sur tous les murs.
+        // l'explosion reste reproductible pour un même point d'impact.
         System.Random random = new System.Random(seed);
         foreach (Rigidbody piece in pieces)
         {
@@ -104,6 +115,11 @@ public class WallVisualSet : MonoBehaviour
                 upStrength * (0.3f + (float)random.NextDouble()) + Mathf.Clamp(offset.y * 0.05f, -0.3f, 0.5f),
                 side * sideStrength * (0.6f + (float)random.NextDouble())).normalized;
             float speed = Mathf.Lerp(minSpeed, maxSpeed, (float)random.NextDouble()) * speedMultiplier;
+            if (surface != WallSurface.Steel)
+            {
+                float proximity = Mathf.Exp(-offset.sqrMagnitude * 0.26f);
+                speed *= Mathf.Lerp(0.76f, 1.22f, proximity);
+            }
             piece.linearVelocity = direction * speed;
             piece.angularVelocity = new Vector3(
                 (float)random.NextDouble() * 2f - 1f,
@@ -111,6 +127,26 @@ public class WallVisualSet : MonoBehaviour
                 (float)random.NextDouble() * 2f - 1f) * maxSpin;
         }
         hideRoutine = StartCoroutine(HideDebrisLater());
+    }
+
+    private void PlayBreakSound()
+    {
+#if UNITY_EDITOR
+        if (AdCaptureDirector.IsPlayingTake)
+        {
+            AdCaptureAudio.PlayWallBreak(surface);
+            return;
+        }
+#endif
+        if (breakClip == null) breakClip = LoadBreakClip(surface);
+        if (breakClip == null) return;
+        if (breakSource == null)
+        {
+            breakSource = gameObject.AddComponent<AudioSource>();
+            breakSource.playOnAwake = false;
+            breakSource.volume = 0.85f;
+        }
+        breakSource.PlayOneShot(breakClip);
     }
 
     private IEnumerator HideDebrisLater()

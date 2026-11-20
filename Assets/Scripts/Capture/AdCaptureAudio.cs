@@ -6,7 +6,7 @@ using UnityEngine;
 // Les mêmes échantillons sont joués dans Unity et mélangés à chaque image du MP4.
 public sealed class AdCaptureAudio : MonoBehaviour
 {
-    public enum Cue { Whoosh, Slingshot, Cannon, Break, WeakFail, Steel, Confirm, End }
+    public enum Cue { Whoosh, Slingshot, Cannon, Break, WeakFail, Steel, Confirm, End, GlassBreak, SteelBreak }
 
     public const int SampleRate = 48000;
     private const int Channels = 2;
@@ -23,6 +23,7 @@ public sealed class AdCaptureAudio : MonoBehaviour
     {
         public AudioClip Clip;
         public float[] Samples;
+        public bool Generated;
     }
 
     private struct Voice
@@ -42,6 +43,16 @@ public sealed class AdCaptureAudio : MonoBehaviour
 
         if (audio.voices.Count == MaxVoices) audio.voices.RemoveAt(0);
         audio.voices.Add(new Voice { Sound = sound });
+    }
+
+    public static void PlayWallBreak(WallSurface surface)
+    {
+        PlayCue(surface switch
+        {
+            WallSurface.Glass => Cue.GlassBreak,
+            WallSurface.Steel => Cue.SteelBreak,
+            _ => Cue.Break
+        });
     }
 
     public static void ResetMix()
@@ -112,13 +123,29 @@ public sealed class AdCaptureAudio : MonoBehaviour
     {
         foreach (Sound sound in sounds.Values)
         {
-            Destroy(sound.Clip);
+            if (sound.Generated) Destroy(sound.Clip);
         }
         if (instance == this) instance = null;
     }
 
     private static Sound CreateSound(Cue cue)
     {
+        AudioClip imported = cue switch
+        {
+            Cue.Break => WallVisualSet.LoadBreakClip(WallSurface.Brick),
+            Cue.GlassBreak => WallVisualSet.LoadBreakClip(WallSurface.Glass),
+            Cue.SteelBreak => WallVisualSet.LoadBreakClip(WallSurface.Steel),
+            _ => null
+        };
+        if (imported != null && imported.channels == Channels && imported.frequency == SampleRate)
+        {
+            var pcm = new float[imported.samples * Channels];
+            if (imported.GetData(pcm, 0))
+                return new Sound { Clip = imported, Samples = pcm };
+        }
+
+        if (cue == Cue.GlassBreak) cue = Cue.Break;
+        if (cue == Cue.SteelBreak) cue = Cue.Steel;
         float duration = Duration(cue);
         int sampleCount = Mathf.CeilToInt(duration * SampleRate);
         var samples = new float[sampleCount * Channels];
@@ -140,7 +167,7 @@ public sealed class AdCaptureAudio : MonoBehaviour
 
         AudioClip clip = AudioClip.Create("CanonPOW Capture — " + cue, sampleCount, Channels, SampleRate, false);
         clip.SetData(samples, 0);
-        return new Sound { Clip = clip, Samples = samples };
+        return new Sound { Clip = clip, Samples = samples, Generated = true };
     }
 
     private static float Duration(Cue cue)

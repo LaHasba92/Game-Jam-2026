@@ -17,6 +17,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
 
     private static AdCaptureDirector current;
+    public static bool IsPlayingTake => current != null && current.hasTake;
     public static bool HoldBossImpact => current != null && current.take == Take.Canon;
     public static bool HideIntroBossHud => current != null && current.hasTake && current.take == Take.Intro;
     public static float PresentationDelta => current != null ? current.frameDelta : Time.unscaledDeltaTime;
@@ -127,7 +128,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         shop = gameObject.AddComponent<AdCaptureShop>();
         transition = gameObject.AddComponent<AdCaptureTransition>();
         projectile.RunEnded += OnShotEnded;
-        GameEvents.OnWallBroken += OnWallBroken;
         return true;
     }
 
@@ -334,13 +334,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (openingShot && elapsed >= OpeningFlightEnd) projectile.HoldAdTake();
     }
 
-    private void OnWallBroken(int wallNumber)
-    {
-        if (!openingShot && !hasFired) return;
-
-        AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Break);
-    }
-
     private void OnShotEnded(RunResult result)
     {
         if (take == Take.Miss)
@@ -471,7 +464,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (current != this) return;
 
         current = null;
-        GameEvents.OnWallBroken -= OnWallBroken;
         StopAllCoroutines();
         AdCaptureRecorder.StopCurrent();
         if (!Application.isPlaying || game == null || projectile == null || models == null ||

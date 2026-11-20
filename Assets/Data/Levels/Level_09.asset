@@ -15,5 +15,5 @@ MonoBehaviour:
   levelNumber: 9
   wallDistance: 153
   zone: 3
-  wallStyle: Pierre
-  wallPrefab: {fileID: 0}
+  wallStyle: Verre
+  wallPrefab: {fileID: 2312564137912347412, guid: 50a91cb13af2450e9f67b365aa5f7fc1, type: 3}
