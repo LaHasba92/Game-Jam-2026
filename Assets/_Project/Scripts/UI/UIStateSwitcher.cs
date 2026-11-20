@@ -13,6 +13,10 @@ public class UIStateSwitcher : MonoBehaviour
     [SerializeField] private GameObject hudPanel;      // pendant la visée et le vol (facultatif)
     [SerializeField] private GameObject resultPanel;   // écran de fin
 
+#if UNITY_EDITOR
+    public RectTransform CaptureShopPanel => shopPanel != null ? shopPanel.transform as RectTransform : null;
+#endif
+
     [Header("Gameplay (pour la distance et le bouton Passer)")]
     [SerializeField] private ProjectileController projectile;   // l'objet Ball du prefab Gameplay
 

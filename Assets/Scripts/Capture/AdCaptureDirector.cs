@@ -13,6 +13,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public static bool HoldBossImpact => current != null && current.take == Take.Canon;
 
     private readonly Dictionary<Canvas, bool> sceneCanvases = new Dictionary<Canvas, bool>();
+    private readonly Dictionary<RectTransform, (Vector2 position, Vector3 scale)> shopLayout =
+        new Dictionary<RectTransform, (Vector2 position, Vector3 scale)>();
     private Camera view;
     private CameraDirector gameCamera;
     private GameManager game;
@@ -25,6 +27,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private FeedbackManager feedback;
     private AdCaptureOverlay overlay;
     private LevelDefinition boss;
+    private float bossHeight;
     private int bossIndex;
     private float originalFieldOfView;
     private float takeTime;
@@ -82,6 +85,9 @@ public sealed class AdCaptureDirector : MonoBehaviour
             Debug.LogError("Capture pub : le mur d’acier doit être dans la liste de LevelManager.");
             return false;
         }
+        bossHeight = boss.wallPrefab != null && boss.wallPrefab.TryGetComponent<WallVisualSet>(out var bossVisual)
+            ? bossVisual.WallHeight
+            : 8f;
 
         foreach (Canvas canvas in FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             sceneCanvases.Add(canvas, canvas.enabled);
@@ -116,6 +122,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         StopAllCoroutines();
         StopFeedback();
         Time.timeScale = 1f;
+        RestoreShopLayout();
         launcher.ClearCaptureAim();
         launcher.enabled = false;
         if (gameCamera != null) gameCamera.enabled = false;
@@ -140,6 +147,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
             case Take.Shop:
                 game.ChangeState(GameState.Home);
                 ui.OpenShop();
+                FitShopToFrame();
                 break;
             case Take.Miss:
             case Take.Canon:
@@ -201,10 +209,11 @@ public sealed class AdCaptureDirector : MonoBehaviour
         {
             float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.unscaledTime - takeTime) / 3f));
             Vector3 from = new Vector3(-7f, 3.7f, -1.6f);
-            Vector3 to = new Vector3(boss.wallDistance - 22f, 8f, -2.1f);
+            float wallDistance = FitDistance(Mathf.Max(1f, wall.WallWidth) * 0.6f, bossHeight * 0.58f);
+            Vector3 to = new Vector3(boss.wallDistance - wallDistance, bossHeight * 0.46f, -0.8f);
             Vector3 position = Vector3.Lerp(from, to, t);
             Vector3 target = Vector3.Lerp(position + new Vector3(23f, -0.8f, 0.4f),
-                new Vector3(boss.wallDistance, 10f, 0f), t);
+                new Vector3(boss.wallDistance, bossHeight * 0.5f, 0f), t);
             SetCamera(position, target, 1f);
             return;
         }
@@ -216,7 +225,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
             Vector3 ball = projectile.transform.position;
             Vector3 target = new Vector3(boss.wallDistance, ball.y + 2.5f, ball.z);
             float blend = 1f - Mathf.Exp(-3.8f * Time.unscaledDeltaTime);
-            SetCamera(target + new Vector3(-12f, 2.8f, -2.7f), target, blend);
+            float distance = Mathf.Max(12f, FitDistance(wall.WallWidth * 0.61f, 0f));
+            SetCamera(target + new Vector3(-distance, 2.8f, -1.6f), target, blend);
             return;
         }
 
@@ -224,14 +234,24 @@ public sealed class AdCaptureDirector : MonoBehaviour
         {
             Vector3 ball = projectile.transform.position;
             float blend = 1f - Mathf.Exp(-15f * Time.unscaledDeltaTime);
-            SetCamera(ball + new Vector3(-9f, 3.3f, -0.8f), ball + new Vector3(7f, 0.4f, 0f), blend);
+            float distance = Mathf.Max(9f, FitDistance(wall.WallWidth * 0.61f, 0f));
+            SetCamera(ball + new Vector3(-distance, 3.3f, -0.45f), ball + new Vector3(7f, 0.4f, 0f), blend);
             return;
         }
 
         Vector3 launcherPosition = launcher.transform.position;
         float cut = Mathf.Clamp01((Time.unscaledTime - takeTime) / 2f);
-        Vector3 aimOffset = Vector3.Lerp(new Vector3(-7f, 3.25f, -3.6f), new Vector3(-7f, 3.1f, -2.7f), cut);
-        SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(6f, 0.8f, 0f), 1f);
+        float aimDistance = Mathf.Max(7f, FitDistance(2.4f, 0f));
+        Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-2.5f, -1.7f, cut));
+        float lead = take == Take.Slingshot ? 0.6f : 2.4f;
+        SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(lead, 0.7f, 0f), 1f);
+    }
+
+    private float FitDistance(float halfWidth, float halfHeight)
+    {
+        float verticalTangent = Mathf.Tan(view.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float horizontalTangent = verticalTangent * view.aspect;
+        return Mathf.Max(halfWidth / horizontalTangent, halfHeight / verticalTangent);
     }
 
     private void SetCamera(Vector3 position, Vector3 target, float blend)
@@ -255,6 +275,52 @@ public sealed class AdCaptureDirector : MonoBehaviour
             if (pair.Key != null) pair.Key.enabled = visible && pair.Value;
     }
 
+    private void FitShopToFrame()
+    {
+        RectTransform panel = ui.CaptureShopPanel;
+        if (panel == null) return;
+
+        Canvas.ForceUpdateCanvases();
+        var corners = new Vector3[4];
+        Vector2 minimum = Vector2.one * float.PositiveInfinity;
+        Vector2 maximum = Vector2.one * float.NegativeInfinity;
+        foreach (Transform child in panel)
+        {
+            if (child is not RectTransform rect || !rect.gameObject.activeSelf) continue;
+            shopLayout.Add(rect, (rect.anchoredPosition, rect.localScale));
+            rect.GetWorldCorners(corners);
+            foreach (Vector3 corner in corners)
+            {
+                Vector2 point = panel.InverseTransformPoint(corner);
+                minimum = Vector2.Min(minimum, point);
+                maximum = Vector2.Max(maximum, point);
+            }
+        }
+        if (shopLayout.Count == 0) return;
+
+        Vector2 center = (minimum + maximum) * 0.5f;
+        Vector2 size = Vector2.Max(maximum - minimum, Vector2.one);
+        Vector2 available = Vector2.Max(panel.rect.size - Vector2.one * 64f, Vector2.one);
+        float scale = Mathf.Min(1f, Mathf.Min(available.x / size.x, available.y / size.y));
+        foreach (RectTransform rect in shopLayout.Keys)
+        {
+            Vector2 position = rect.localPosition;
+            rect.anchoredPosition += panel.rect.center + (position - center) * scale - position;
+            rect.localScale *= scale;
+        }
+    }
+
+    private void RestoreShopLayout()
+    {
+        foreach (var pair in shopLayout)
+        {
+            if (pair.Key == null) continue;
+            pair.Key.anchoredPosition = pair.Value.position;
+            pair.Key.localScale = pair.Value.scale;
+        }
+        shopLayout.Clear();
+    }
+
     private void OnDisable()
     {
         if (current != this) return;
@@ -267,6 +333,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
             return;
 
         Time.timeScale = 1f;
+        RestoreShopLayout();
         projectile.RunEnded -= OnShotEnded;
         projectile.ResetToLauncher();
         models.SetCaptureModel(-1);
