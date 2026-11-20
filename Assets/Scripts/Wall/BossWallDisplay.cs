@@ -87,6 +87,14 @@ public sealed class BossWallDisplay : MonoBehaviour
     {
         if (!shown) return;
 
+#if UNITY_EDITOR
+        if (AdCaptureDirector.HideIntroBossHud)
+        {
+            canvas.enabled = false;
+            return;
+        }
+#endif
+
         if (impactPlaying)
         {
 #if UNITY_EDITOR

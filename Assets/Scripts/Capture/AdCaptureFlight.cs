@@ -11,9 +11,10 @@ public static class AdCaptureFlight
     private const float WallTop = 8f;
 
     public static bool TryFind(bool canon, Vector3 origin, ProjectileController projectile, LevelManager levels,
-                               int bossIndex, out Vector3 velocity)
+                               int bossIndex, out Vector3 velocity, out WallHit nearMiss)
     {
         velocity = Vector3.zero;
+        nearMiss = default;
         if (projectile == null || levels == null) return false;
 
         LevelDefinition boss = null;
@@ -31,7 +32,7 @@ public static class AdCaptureFlight
         }
 
         return canon
-            ? TryFindNearMiss(origin, projectile, levels, distances, boss, out velocity)
+            ? TryFindNearMiss(origin, projectile, levels, distances, boss, out velocity, out nearMiss)
             : TryFindShortFlight(origin, projectile, levels, distances, out velocity);
     }
 
@@ -59,9 +60,10 @@ public static class AdCaptureFlight
     }
 
     private static bool TryFindNearMiss(Vector3 origin, ProjectileController projectile, LevelManager levels,
-                                       float[] distances, LevelDefinition boss, out Vector3 velocity)
+                                       float[] distances, LevelDefinition boss, out Vector3 velocity, out WallHit nearMiss)
     {
         velocity = Vector3.zero;
+        nearMiss = default;
         int bossIndex = distances.Length - 1;
         float bestScore = float.PositiveInfinity;
         float maxSpeed = projectile.Physics.maxSpeed;
@@ -81,6 +83,7 @@ public static class AdCaptureFlight
                 if (score >= bestScore) continue;
                 bestScore = score;
                 velocity = candidate;
+                nearMiss = hit;
 
                 if (score < 0.5f) return true;
             }

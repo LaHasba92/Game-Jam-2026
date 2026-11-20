@@ -16,6 +16,8 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     private const float ComboDuration = 0.68f;
 
     private Canvas canvas;
+    private GameObject hookHud;
+    private GameObject challenge;
     private GameObject gauge;
     private GameObject flightHud;
     private GameObject endCard;
@@ -24,12 +26,50 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     private Text wallLabel;
     private Text distanceLabel;
     private Text comboLabel;
+    private Text hookHealth;
+    private Image hookFlash;
+    private CanvasGroup hookPunch;
+    private CanvasGroup hookPrompt;
+    private CanvasGroup challengeGroup;
     private RectTransform weakBanner;
     private Font font;
     private int displayedWalls = -1;
     private int displayedMeters = -1;
+    private int displayedHookHealth = -1;
     private float comboTime;
     private float weakTime;
+
+    public void ShowHook(int remainingHealth, float elapsed, float impactTime)
+    {
+        EnsureCanvas();
+        SetView(hookHud);
+        if (displayedHookHealth != remainingHealth)
+        {
+            displayedHookHealth = remainingHealth;
+            hookHealth.text = remainingHealth > 0 ? $"{remainingHealth} PV." : "LE MUR GÉANT";
+        }
+
+        float impact = remainingHealth > 0 && elapsed >= impactTime
+            ? 1f - Mathf.InverseLerp(impactTime, impactTime + 0.20f, elapsed)
+            : 0f;
+        hookPunch.transform.localScale = Vector3.one * (1f + 0.19f * impact);
+        hookPunch.alpha = 1f - Mathf.InverseLerp(0.72f, 0.98f, elapsed);
+        Color flash = Gold;
+        flash.a = impact * 0.32f;
+        hookFlash.color = flash;
+        hookPrompt.alpha = Mathf.InverseLerp(0.91f, 1.08f, elapsed) *
+                           (1f - Mathf.InverseLerp(2.71f, 2.94f, elapsed));
+    }
+
+    public void ShowChallenge(float elapsed)
+    {
+        EnsureCanvas();
+        SetView(challenge);
+
+        float enter = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.7f, 0.92f, elapsed));
+        challengeGroup.alpha = enter;
+        ((RectTransform)challengeGroup.transform).anchoredPosition = Vector2.down * (18f * (1f - enter));
+    }
 
     public void ShowGauge(float value, bool perfect)
     {
@@ -91,10 +131,13 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         if (canvas == null) return;
 
         canvas.enabled = false;
+        hookHud.SetActive(false);
+        challenge.SetActive(false);
         comboLabel.gameObject.SetActive(false);
         weakBanner.gameObject.SetActive(false);
         displayedWalls = -1;
         displayedMeters = -1;
+        displayedHookHealth = -1;
         distanceLabel.text = "0 m";
     }
 
@@ -132,6 +175,8 @@ public sealed class AdCaptureOverlay : MonoBehaviour
 
     private void SetView(GameObject view)
     {
+        hookHud.SetActive(view == hookHud);
+        challenge.SetActive(view == challenge);
         gauge.SetActive(view == gauge);
         flightHud.SetActive(view == flightHud);
         endCard.SetActive(view == endCard);
@@ -162,9 +207,47 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
 
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        CreateHook(root.transform);
+        CreateChallenge(root.transform);
         CreateGauge(root.transform);
         CreateFlightHud(root.transform);
         CreateEndCard(root.transform);
+    }
+
+    private void CreateHook(Transform parent)
+    {
+        RectTransform frame = RectAt("Accroche", parent, Vector2.zero, Vector2.zero, Vector2.zero);
+        frame.anchorMin = Vector2.zero;
+        frame.anchorMax = Vector2.one;
+        hookHud = frame.gameObject;
+
+        RectTransform punch = ImageAt("Impact", frame, new Color32(15, 23, 38, 242),
+            new Vector2(0.5f, 0.235f), new Vector2(452f, 168f), Vector2.zero).rectTransform;
+        hookPunch = punch.gameObject.AddComponent<CanvasGroup>();
+        hookFlash = ImageAt("Flash", punch, Color.clear, new Vector2(0.5f, 0.5f), new Vector2(452f, 168f), Vector2.zero);
+        ImageAt("Accent", punch, Gold, new Vector2(0.5f, 0f), new Vector2(452f, 6f), Vector2.up * 3f);
+        hookHealth = TextAt("PV restants", punch, string.Empty, Gold, 124, new Vector2(418f, 160f), Vector2.zero);
+        hookHealth.horizontalOverflow = HorizontalWrapMode.Wrap;
+        hookHealth.verticalOverflow = VerticalWrapMode.Truncate;
+        hookHealth.resizeTextForBestFit = true;
+        hookHealth.resizeTextMinSize = 48;
+        hookHealth.resizeTextMaxSize = 124;
+
+        RectTransform prompt = ImageAt("Défi", frame, new Color32(15, 23, 38, 242),
+            new Vector2(0.5f, 0.195f), new Vector2(560f, 91f), Vector2.zero).rectTransform;
+        hookPrompt = prompt.gameObject.AddComponent<CanvasGroup>();
+        ImageAt("Accent", prompt, Gold, new Vector2(0f, 0.5f), new Vector2(8f, 91f), Vector2.right * 4f);
+        TextAt("Question", prompt, "TU LE CASSES ?", Ivory, 51, new Vector2(510f, 82f), Vector2.zero);
+    }
+
+    private void CreateChallenge(Transform parent)
+    {
+        RectTransform panel = ImageAt("À toi", parent, new Color32(15, 23, 38, 242),
+            new Vector2(0.5f, 0.205f), new Vector2(624f, 102f), Vector2.zero).rectTransform;
+        challenge = panel.gameObject;
+        challengeGroup = challenge.AddComponent<CanvasGroup>();
+        ImageAt("Accent", panel, Gold, new Vector2(0f, 0.5f), new Vector2(9f, 102f), Vector2.right * 4.5f);
+        TextAt("Invitation", panel, "À TOI DE LE FINIR.", Ivory, 54, new Vector2(584f, 90f), Vector2.zero);
     }
 
     private void CreateFlightHud(Transform parent)
