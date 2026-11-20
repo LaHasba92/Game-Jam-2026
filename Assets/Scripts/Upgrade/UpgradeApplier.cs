@@ -44,6 +44,13 @@ public class UpgradeApplier : MonoBehaviour
     [ContextMenu("Appliquer maintenant")]
     public void Apply()
     {
+        // Si la boutique du HUD (RunUpgrades) est dans la scene, c'est elle qui applique les ameliorations :
+        // on ne fait rien, sinon les deux systemes s'ecraseraient l'un l'autre.
+        if (FindFirstObjectByType<RunUpgrades>(FindObjectsInactive.Include) != null)
+        {
+            return;
+        }
+
         UpgradeSaveData data = Load();
 
         float powerValue = Value(power, data.powerLevel, 25f);

@@ -4,6 +4,7 @@ using UnityEngine;
 // Le « POW » du jeu (GDD section 6, game feel) : il ecoute les GameEvents et ajoute
 // l'arret sur image, le ralenti, le texte qui saute, le rebond du lanceur et la vibration.
 // Il ne modifie aucun autre script : on peut le retirer, le jeu marche pareil.
+// La secousse de camera est geree par le CameraDirector.
 public class FeedbackManager : MonoBehaviour
 {
     [Header("Casse d'un mur")]
@@ -17,15 +18,17 @@ public class FeedbackManager : MonoBehaviour
     [SerializeField] private int popupFontSize = 90;
     [SerializeField] private Color popupColor = new Color(1f, 0.85f, 0.1f);
 
-    [Header("HUD de debug (en attendant le HUD de Hugo)")]
-    [SerializeField] private bool showHud = true;
-    [SerializeField] private ProjectileController projectile;   // l'objet Ball
-    [SerializeField] private int hudFontSize = 60;
-
     [Header("Lacher")]
     [SerializeField] private Transform launcherVisual;     // la fronde (facultatif)
     [SerializeField] private float launcherPunch = 1.1f;   // echelle 1,1 puis 1,0
     [SerializeField] private float punchDuration = 0.15f;
+
+    [Header("HUD de debug (cache automatiquement si le HUD RunHud est dans la scene)")]
+    [SerializeField] private bool showHud = true;
+    [SerializeField] private int hudFontSize = 60;
+
+    [Header("Liens")]
+    [SerializeField] private ProjectileController projectile; // l'objet Ball (HUD de debug, et pas d'arret sur image pendant « Passer »)
 
     private Coroutine timeRoutine;
     private string popupText;
@@ -33,6 +36,36 @@ public class FeedbackManager : MonoBehaviour
     private Vector3 launcherBaseScale = Vector3.one;
     private GUIStyle popupStyle;
     private GUIStyle hudStyle;
+    private bool hudShowsPopup;   // le HUD (RunHud) affiche deja POW / COMBO
+    private bool holdingTime;
+
+    // --- Gel du temps partage avec la pause du HUD ---------------------------------------
+    // La pause et l'arret sur image peuvent se chevaucher : le temps ne repart
+    // que quand plus personne ne le retient, et revient au ralenti s'il etait en cours.
+    private static int timeHolds;
+    private static bool slowActive;
+    private static float slowScale = 1f;
+
+    internal static void HoldTime()
+    {
+        timeHolds++;
+        Time.timeScale = 0f;
+    }
+
+    internal static void ReleaseTime()
+    {
+        timeHolds = Mathf.Max(0, timeHolds - 1);
+        if (timeHolds == 0) Time.timeScale = slowActive ? slowScale : 1f;
+    }
+
+    private static void SetSlow(bool active, float scale)
+    {
+        slowActive = active;
+        slowScale = scale;
+        if (timeHolds == 0) Time.timeScale = active ? scale : 1f;
+    }
+
+    // --------------------------------------------------------------------------------------
 
     private void OnEnable()
     {
@@ -46,7 +79,19 @@ public class FeedbackManager : MonoBehaviour
         GameEvents.OnWallBroken -= OnWallBroken;
         GameEvents.OnShotFired -= OnShotFired;
         GameEvents.OnRunEnded -= OnRunEnded;
-        Time.timeScale = 1f;   // ne jamais laisser le jeu ralenti
+
+        // ne jamais laisser le jeu fige ou ralenti
+        if (timeRoutine != null)
+        {
+            StopCoroutine(timeRoutine);
+            timeRoutine = null;
+        }
+        if (holdingTime)
+        {
+            holdingTime = false;
+            ReleaseTime();
+        }
+        SetSlow(false, 1f);
     }
 
     private void Start()
@@ -55,6 +100,7 @@ public class FeedbackManager : MonoBehaviour
         {
             launcherBaseScale = launcherVisual.localScale;
         }
+        hudShowsPopup = FindFirstObjectByType<RunHud>(FindObjectsInactive.Include) != null;
     }
 
     // --- Casse : arret sur image, ralenti, texte, vibration -----------------------------
@@ -63,30 +109,43 @@ public class FeedbackManager : MonoBehaviour
     {
         ShowPopup(wallNumber == 1 ? "POW !" : $"COMBO x{wallNumber}");
 
-        if (timeRoutine != null)
+        // Pendant « Passer » ou la pause, on ne fige pas le temps
+        bool skipping = projectile != null && projectile.IsSkipping;
+        if (!skipping && timeHolds == 0)
         {
-            StopCoroutine(timeRoutine);
+            if (timeRoutine != null)
+            {
+                StopCoroutine(timeRoutine);
+                if (holdingTime)
+                {
+                    holdingTime = false;
+                    ReleaseTime();
+                }
+            }
+            timeRoutine = StartCoroutine(HitStopThenSlowMotion());
         }
-        timeRoutine = StartCoroutine(HitStopThenSlowMotion());
 
-        if (vibrate)
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        if (vibrate && !skipping)
         {
-#if UNITY_ANDROID || UNITY_IOS
-            Handheld.Vibrate();   // n'existe que sur telephone
-#endif
+            Handheld.Vibrate();
         }
+#endif
     }
 
     private IEnumerator HitStopThenSlowMotion()
     {
         // « Realtime » : ces attentes comptent le vrai temps, meme quand le jeu est fige ou ralenti.
-        Time.timeScale = 0f;
+        holdingTime = true;
+        HoldTime();
         yield return new WaitForSecondsRealtime(hitStop);
+        holdingTime = false;
 
-        Time.timeScale = slowMotionScale;
+        SetSlow(true, slowMotionScale);   // avant ReleaseTime : le temps repart directement au ralenti
+        ReleaseTime();
         yield return new WaitForSecondsRealtime(slowMotion);
 
-        Time.timeScale = 1f;
+        SetSlow(false, 1f);
         timeRoutine = null;
     }
 
@@ -97,11 +156,12 @@ public class FeedbackManager : MonoBehaviour
 
     private void ShowPopup(string text)
     {
+        if (hudShowsPopup) return;   // evite le texte en double avec le HUD
         popupText = text;
         popupStart = Time.unscaledTime;
     }
 
-    // --- Lacher : la fronde rebondit -------------------------------------------------------
+    // --- Lacher : la fronde rebondit et le telephone vibre (GDD) ---------------------------
 
     private void OnShotFired(ShotInfo shot)
     {
@@ -109,6 +169,13 @@ public class FeedbackManager : MonoBehaviour
         {
             StartCoroutine(PunchLauncher());
         }
+
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        if (vibrate)
+        {
+            Handheld.Vibrate();   // vibration courte au lacher
+        }
+#endif
     }
 
     private IEnumerator PunchLauncher()
@@ -122,7 +189,7 @@ public class FeedbackManager : MonoBehaviour
         launcherVisual.localScale = launcherBaseScale;
     }
 
-    // --- Affichage du texte (en attendant l'interface de Hugo) ----------------------------
+    // --- Affichage du texte (seulement s'il n'y a pas de HUD) ------------------------------
 
     private void OnGUI()
     {
@@ -155,10 +222,11 @@ public class FeedbackManager : MonoBehaviour
         GUI.color = Color.white;
     }
 
-    // Murs casses en gros en haut de l'ecran, et la distance dessous, pendant la visee et le vol.
+    // HUD de debug : murs casses et distance, pendant la visee et le vol.
+    // Il ne s'affiche pas quand le vrai HUD (RunHud) est dans la scene, pour eviter le double affichage.
     private void DrawHud()
     {
-        if (!showHud || projectile == null)
+        if (!showHud || hudShowsPopup || projectile == null)
         {
             return;
         }

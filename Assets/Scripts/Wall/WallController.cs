@@ -18,8 +18,9 @@ public class WallController : MonoBehaviour, IWall
     // Temporaire : sera remplace par GameEvents.OnWallHit quand Benji l'aura pousse.
     public event System.Action<WallHitResult> HitResolved;
 
-    public float Distance => current.wallDistance;
-    public float WallWidth => currentSet.WallWidth;        // le couloir (murs invisibles d'Andy)
+    public bool HasWall => currentSet != null;
+    public float Distance => current != null ? current.wallDistance : float.PositiveInfinity;
+    public float WallWidth => currentSet != null ? currentSet.WallWidth : 6f;        // le couloir (murs invisibles d'Andy)
     public float WallHeight => corridorHeight;             // le plafond invisible ; 0 = aucun
 
     // Pool : plusieurs exemplaires par style, parce que l'ancien mur explose encore
@@ -42,6 +43,7 @@ public class WallController : MonoBehaviour, IWall
 
         current = wall;
         currentSet = GetFreeSet(wall.wallPrefab != null ? wall.wallPrefab : defaultWallPrefab);
+        if (currentSet == null) return;
         currentSet.gameObject.SetActive(true);
         currentSet.transform.position = new Vector3(Distance, 0f, 0f);
         currentSet.ResetWall();
@@ -62,12 +64,18 @@ public class WallController : MonoBehaviour, IWall
                 set.gameObject.SetActive(false);
             }
         }
+        current = null;
         currentSet = null;
         brokenSet = null;
     }
 
     private WallVisualSet GetFreeSet(GameObject prefab)
     {
+        if (prefab == null || !prefab.TryGetComponent<WallVisualSet>(out var visual) || !visual.HasVisuals)
+        {
+            Debug.LogError("WallController : prefab de mur ou visuels Intact/Broken manquants.", this);
+            return null;
+        }
         if (!pool.TryGetValue(prefab, out List<WallVisualSet> sets))
         {
             sets = new List<WallVisualSet>();

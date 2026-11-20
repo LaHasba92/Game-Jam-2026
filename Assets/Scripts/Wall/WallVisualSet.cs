@@ -27,6 +27,7 @@ public class WallVisualSet : MonoBehaviour
     private Quaternion[] startRotations;
     private Coroutine hideRoutine;
 
+    public bool HasVisuals => intact != null && broken != null;
     public float WallHeight => wallHeight;
     public float WallWidth => wallWidth;
 
@@ -37,6 +38,7 @@ public class WallVisualSet : MonoBehaviour
     {
         // On memorise la place de chaque morceau pour pouvoir reconstruire le mur
         // (pool : on reutilise les memes morceaux, jamais de Instantiate pendant le jeu).
+        if (!HasVisuals) return;
         pieces = broken.GetComponentsInChildren<Rigidbody>(true);
         startPositions = new Vector3[pieces.Length];
         startRotations = new Quaternion[pieces.Length];
@@ -63,6 +65,7 @@ public class WallVisualSet : MonoBehaviour
     // Mur entier, morceaux ranges.
     public void ResetWall()
     {
+        if (!HasVisuals) return;
         if (hideRoutine != null)
         {
             StopCoroutine(hideRoutine);
@@ -85,6 +88,7 @@ public class WallVisualSet : MonoBehaviour
     // Explosion depuis le point d'impact (en coordonnees du monde).
     public void Break(Vector3 impactPoint)
     {
+        if (!HasVisuals) return;
         intact.SetActive(false);
         broken.gameObject.SetActive(true);
         Physics.SyncTransforms();
