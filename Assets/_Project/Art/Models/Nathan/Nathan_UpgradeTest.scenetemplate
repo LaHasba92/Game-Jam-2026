@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 13966, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: Nathan_UpgradeTest
+  m_EditorClassIdentifier: UnityEditor.dll::UnityEditor.SceneTemplate.SceneTemplateAsset
+  templateScene: {fileID: 102900000, guid: a05145b76c1de8a4b8395c7ad94a0f3b, type: 3}
+  templateName: 
+  description: 
+  preview: {fileID: 0}
+  dependencies:
+  - dependency: {fileID: 11400000, guid: a4c3a8b7dc0ec0948ad50304e0b9a017, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 3ad68ef459e8e2b43931135bf74c35bb, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 0006243396766f846830e98dca1e2197, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: dc31788e9ff8a0744897a1366cc04291, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 139a5a9455335d14faf9d27399837719, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 7dde2a1d96c85504c971ecd5ac727078, type: 2}
+    instantiationMode: 1
+  templatePipeline: {fileID: 0}
+  badge: {fileID: 0}
+  addToDefaults: 0
