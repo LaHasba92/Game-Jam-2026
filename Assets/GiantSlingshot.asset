@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a8c30654b1a0a1b42ad91eef0542d320, type: 3}
   m_Name: GiantSlingshot
   m_EditorClassIdentifier: Assembly-CSharp::LauncherDefinition
-  displayName: 
+  displayName: GiantSlingshot
   price: 400
   requiredWall: 2
   powerMultiplier: 1

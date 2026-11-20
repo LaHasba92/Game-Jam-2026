@@ -12,10 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 684c9d4408f837648ad1b6dc5ed089e2, type: 3}
   m_Name: Money
   m_EditorClassIdentifier: Assembly-CSharp::UpgradeData
-  displayName: Puissance
-  baseValue: 25
-  ValueMultiplier: 1.06
-  valuePerLevel: 0
+  displayName: Argent
+  baseValue: 1
+  ValueMultiplier: 1
+  valuePerLevel: 0.1
   minimumValue: 0
-  baseCost: 50
-  costGrowth: 1.18
+  maximumValue: 0
+  baseCost: 100
+  costGrowth: 1.22

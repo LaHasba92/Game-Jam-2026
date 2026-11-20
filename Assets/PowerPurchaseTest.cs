@@ -7,7 +7,10 @@ public class PowerPurchaseTest : MonoBehaviour
     [SerializeField] private UpgradeDefinition aerodynamics;
     [SerializeField] private UpgradeDefinition money;
     [SerializeField] private LauncherDefinition giantSlingshot;
+    [SerializeField] private UpgradeDefinition momentum;
+    [SerializeField] private UpgradeDefinition bounce;
 
+    private int bounceLevel = 1;
     private int coins = 230;
     private int powerLevel = 1;
     private int aeroLevel = 1;
@@ -16,9 +19,12 @@ public class PowerPurchaseTest : MonoBehaviour
     private int highestBrokenWall;
     private bool ownsGiantSlingshot;
     private string message = "";
+    private int momentumLevel = 1;
 
     private string SavePath =>
         Path.Combine(Application.persistentDataPath, "upgrade-test.json");
+
+   
 
     private void Awake()
     {
@@ -32,8 +38,11 @@ public class PowerPurchaseTest : MonoBehaviour
         powerLevel = data.powerLevel;
         aeroLevel = data.aeroLevel;
         moneyLevel = data.moneyLevel;
+        momentumLevel = Mathf.Max(1, data.momentumLevel);
         ownsGiantSlingshot = data.ownsGiantSlingshot;
         highestBrokenWall = data.highestBrokenWall;
+        bounceLevel = Mathf.Max(1, data.bounceLevel);
+
 
         // Une ancienne sauvegarde peut contenir uniquement le dernier mur cassé.
         highestReachedWall = Mathf.Max(data.highestReachedWall, highestBrokenWall);
@@ -46,9 +55,11 @@ public class PowerPurchaseTest : MonoBehaviour
         data.powerLevel = powerLevel;
         data.aeroLevel = aeroLevel;
         data.moneyLevel = moneyLevel;
+        data.momentumLevel = momentumLevel;
         data.highestReachedWall = highestReachedWall;
         data.highestBrokenWall = highestBrokenWall;
         data.ownsGiantSlingshot = ownsGiantSlingshot;
+        data.bounceLevel = bounceLevel;
 
         string json = JsonUtility.ToJson(data, true);
         File.WriteAllText(SavePath, json);
@@ -63,6 +74,8 @@ public class PowerPurchaseTest : MonoBehaviour
         DrawUpgrade(power, ref powerLevel);
         DrawUpgrade(aerodynamics, ref aeroLevel);
         DrawUpgrade(money, ref moneyLevel);
+        DrawUpgrade(momentum, ref momentumLevel);
+        DrawUpgrade(bounce, ref bounceLevel);
 
         if (GUILayout.Button("Test : +10 000 pièces"))
         {
@@ -110,6 +123,17 @@ public class PowerPurchaseTest : MonoBehaviour
             return;
         }
 
+        if (GUILayout.Button("Test : terminer un tir"))
+        {
+            // Simule un tir de 100 m avec 10 pièces ramassées et 2 murs cassés.
+            float multiplier = money.GetValue(moneyLevel);
+            int reward = EconomyManager.CalculateReward(100f, 10, 2, multiplier);
+
+            coins += reward;
+            SaveProgress();
+            message = $"Fin du tir : +{reward} pièces.";
+        }
+
         GUILayout.Label($"Mur le plus avancé atteint : {highestReachedWall}");
 
         // Ce bouton permet de tester le déblocage sans simuler la casse du mur.
@@ -148,5 +172,17 @@ public class PowerPurchaseTest : MonoBehaviour
         ownsGiantSlingshot = true;
         SaveProgress();
         message = $"{launcherName} acheté !";
+    }
+
+    [ContextMenu("Tester les gains de fin de partie")]
+    private void TestRunReward()
+    {
+        // Même partie pour les deux essais : 100 m, 10 pièces ramassées, 2 murs cassés.
+        for (int level = 1; level <= 2; level++)
+        {
+            float multiplier = money.GetValue(level);
+            int reward = EconomyManager.CalculateReward(100f, 10, 2, multiplier);
+            Debug.Log($"Argent niveau {level} : gain de {reward} pièces.");
+        }
     }
 }

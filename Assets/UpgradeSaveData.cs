@@ -10,4 +10,6 @@ public class UpgradeSaveData
     public int highestReachedWall;
     public int highestBrokenWall;
     public bool ownsGiantSlingshot;
+    public int momentumLevel;
+    public int bounceLevel;
 }
