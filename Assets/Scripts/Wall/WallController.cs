@@ -19,7 +19,7 @@ public class WallController : MonoBehaviour, IWall
     public event System.Action<WallHitResult> HitResolved;
 
     public float Distance => current.wallDistance;
-    public float WallWidth => currentSet.WallWidth;        // le couloir (murs invisibles d'Andy)
+    public float WallWidth => currentSet != null ? currentSet.WallWidth : 6f;
     public float WallHeight => corridorHeight;             // le plafond invisible ; 0 = aucun
 
     // Pool : plusieurs exemplaires par style, parce que l'ancien mur explose encore

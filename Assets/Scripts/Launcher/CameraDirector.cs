@@ -1,10 +1,12 @@
-using System.Collections;
 using UnityEngine;
 
 // La camera du jeu, sans Cinemachine : derriere le lanceur pendant la visee, puis elle suit
 // le boulet. Quand un mur casse, elle reste un moment sur l'explosion avant de repartir.
 public class CameraDirector : MonoBehaviour
 {
+    // Les bras des lampadaires dépassent à l'intérieur de la route.
+    private const float RoadEdgeClearance = 1.4f;
+
     [SerializeField] private ProjectileController projectile;
     [SerializeField] private WallController wall;
     [SerializeField] private Vector3 aimOffset = new Vector3(-8f, 4f, 0f);     // derriere le lanceur
@@ -51,9 +53,20 @@ public class CameraDirector : MonoBehaviour
             lookAt = projectile.transform.position + Vector3.right * 20f;
         }
 
+        float roadWidth = wall.WallWidth;
+        target = KeepOverRoad(target, roadWidth);
+        lookAt = KeepOverRoad(lookAt, roadWidth);
         float t = 1f - Mathf.Exp(-smoothing * Time.deltaTime);
-        transform.position = Vector3.Lerp(transform.position, target, t) + Random.insideUnitSphere * shake;
+        Vector3 cameraPosition = Vector3.Lerp(transform.position, target, t) + Random.insideUnitSphere * shake;
+        transform.position = KeepOverRoad(cameraPosition, roadWidth);
         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(lookAt - transform.position), t);
         shake = Mathf.MoveTowards(shake, 0f, Time.deltaTime);
+    }
+
+    public static Vector3 KeepOverRoad(Vector3 point, float roadWidth)
+    {
+        float safeHalfWidth = Mathf.Max(0f, roadWidth * 0.5f - RoadEdgeClearance);
+        point.z = Mathf.Clamp(point.z, -safeHalfWidth, safeHalfWidth);
+        return point;
     }
 }

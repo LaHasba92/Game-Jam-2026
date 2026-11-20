@@ -342,7 +342,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
             Vector3 target = new Vector3(boss.wallDistance, ball.y + 2.5f, ball.z);
             float blend = 1f - Mathf.Exp(-3.8f * frameDelta);
             float distance = Mathf.Max(12f, FitDistance(wall.WallWidth * 0.61f, 0f));
-            SetCamera(target + new Vector3(-distance, 2.8f, -1.6f), target, blend);
+            SetCamera(new Vector3(target.x - distance, target.y + 2.8f, -1.2f), target, blend);
             return;
         }
 
@@ -360,15 +360,15 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (take == Take.Canon)
         {
             float reveal = Mathf.SmoothStep(0f, 1f, (clock - takeTime) / CanonLeadIn);
-            Vector3 offset = Vector3.Lerp(new Vector3(-aimDistance * 0.82f, 2.15f, -3.5f),
-                new Vector3(-aimDistance, 2.9f, -1.7f), reveal);
+            Vector3 offset = Vector3.Lerp(new Vector3(-aimDistance * 0.82f, 2.15f, -1.5f),
+                new Vector3(-aimDistance, 2.9f, -0.7f), reveal);
             Vector3 aim = new Vector3(Mathf.Lerp(0.4f, 2.4f, reveal), 0.7f, 0f);
             SetCamera(launcherPosition + offset, launcherPosition + aim, 1f);
             return;
         }
 
         float cut = Mathf.Clamp01((clock - takeTime) / 2f);
-        Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-2.5f, -1.7f, cut));
+        Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-1.5f, -0.8f, cut));
         float lead = take == Take.Miss
             ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - 1.7f) / 0.6f)
             : 2.4f;
@@ -384,8 +384,12 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     private void SetCamera(Vector3 position, Vector3 target, float blend)
     {
+        float roadWidth = wall.WallWidth;
         Transform cameraTransform = view.transform;
-        cameraTransform.position = Vector3.Lerp(cameraTransform.position, position, blend);
+        position = CameraDirector.KeepOverRoad(position, roadWidth);
+        target = CameraDirector.KeepOverRoad(target, roadWidth);
+        cameraTransform.position = CameraDirector.KeepOverRoad(
+            Vector3.Lerp(cameraTransform.position, position, blend), roadWidth);
         cameraTransform.rotation = Quaternion.Slerp(cameraTransform.rotation,
             Quaternion.LookRotation(target - cameraTransform.position), blend);
     }
