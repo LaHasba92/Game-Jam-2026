@@ -1,5 +1,9 @@
 fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/_Project/Art/Models/Killian/Slingshot2_rock.prefab.meta
 guid: 4df9254fea27f5c4e903f03e47030c66
+========
+guid: f522858b603ecd1498ea633b589cda24
+>>>>>>>> origin/Dev:Assets/_Project/Prefabs/Gameplay.prefab.meta
 PrefabImporter:
   externalObjects: {}
   userData: 
