@@ -42,6 +42,16 @@ public class LauncherController : MonoBehaviour
     public float Elevation { get; private set; } = 20f;
     public float Side { get; private set; }
 
+#if UNITY_EDITOR
+    public Vector3 CaptureLaunchOrigin => launchPoint.position;
+
+    public void ClearCaptureAim()
+    {
+        IsAiming = false;
+        SetPreviewVisible(false);
+    }
+#endif
+
     // Temporaire : sera remplace par GameEvents.OnShotFired.
     public event System.Action<float> ShotFired;   // la puissance (multiplicateur de jauge)
 

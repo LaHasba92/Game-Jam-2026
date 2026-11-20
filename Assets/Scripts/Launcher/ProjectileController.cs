@@ -52,6 +52,17 @@ public class ProjectileController : MonoBehaviour
     private Vector3 lastLaunchVelocity;
     private float lastBrokenWallX;
 
+#if UNITY_EDITOR
+    private bool captureFlight;
+
+    public void LaunchAdTake(Vector3 from, Vector3 launchVelocity)
+    {
+        Launch(from, launchVelocity);
+        captureFlight = true;
+        transform.position = from;
+    }
+#endif
+
     private void OnEnable()
     {
         GameEvents.OnStateChanged += OnStateChanged;
@@ -92,6 +103,9 @@ public class ProjectileController : MonoBehaviour
     // Debut d'une partie : le boulet revient sur le lanceur (appele par le GameManager de Benji).
     public void ResetToLauncher()
     {
+#if UNITY_EDITOR
+        captureFlight = false;
+#endif
         IsFlying = false;
         WallsBroken = 0;
         position = startPosition;
@@ -122,6 +136,9 @@ public class ProjectileController : MonoBehaviour
 
     private void Update()
     {
+#if UNITY_EDITOR
+        if (captureFlight) return;
+#endif
         if (!IsFlying)
         {
             return;
@@ -150,6 +167,9 @@ public class ProjectileController : MonoBehaviour
     private void Simulate(float dt, bool readInput)
     {
         flightTime += dt;
+#if UNITY_EDITOR
+        if (captureFlight) readInput = false;
+#endif
         if (readInput && !rolling)
         {
             // Pilotage direct : la vitesse de cote suit le doigt tout de suite (droite de l'ecran = -Z).
@@ -162,9 +182,14 @@ public class ProjectileController : MonoBehaviour
         }
 
         BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
+#if UNITY_EDITOR
+        if (!captureFlight) HandleGroundObjects();
+#else
         HandleGroundObjects();
+#endif
         HandleWall();
 
+        if (!IsFlying) return;
         slowTimer = Mathf.Abs(velocity.x) < stopSpeed ? slowTimer + dt : 0f;
         if (slowTimer >= stopDelay)
         {
@@ -244,6 +269,15 @@ public class ProjectileController : MonoBehaviour
         }
         else
         {
+#if UNITY_EDITOR
+            if (captureFlight)
+            {
+                position.x = wallX - physics.radius;
+                velocity = Vector3.zero;
+                EndRun();
+                return;
+            }
+#endif
             velocity.x *= result.exitSpeedFactor;
             position.x = wallX - physics.radius - 0.05f;
         }
@@ -268,6 +302,14 @@ public class ProjectileController : MonoBehaviour
             wallsBroken = WallsBroken,
         };
         Debug.Log($"FIN : {WallsBroken} murs casses, {position.x:0} m");
+#if UNITY_EDITOR
+        if (captureFlight)
+        {
+            captureFlight = false;
+            RunEnded?.Invoke(result);
+            return; // une prise rejouable ne crédite aucun gain ni record
+        }
+#endif
         RunEnded?.Invoke(result);
         GameEvents.RaiseRunEnded(result);   // le GameManager passe en Resultat
     }

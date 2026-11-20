@@ -15,6 +15,14 @@ public class LevelManager : MonoBehaviour
 
     public int WallsBroken => wallIndex;   // pour le score et les pieces (100 x n)
 
+#if UNITY_EDITOR
+    public LevelDefinition GetCaptureBoss(out int index)
+    {
+        index = walls == null ? -1 : System.Array.FindIndex(walls, level => level != null && level.maxHealth > 0);
+        return index >= 0 ? walls[index] : null;
+    }
+#endif
+
     // Temporaire : sera remplace par GameEvents.OnLevelLoaded.
     public event System.Action<LevelDefinition> WallPlaced;
 

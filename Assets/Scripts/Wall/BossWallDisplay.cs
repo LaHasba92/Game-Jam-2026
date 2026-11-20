@@ -26,6 +26,7 @@ public sealed class BossWallDisplay : MonoBehaviour
     private int maxHealth;
     private int currentHealth;
     private float impactTime;
+    private float impactDuration = ImpactDuration;
     private Color impactColor;
     private bool shown;
     private bool impactPlaying;
@@ -55,6 +56,14 @@ public sealed class BossWallDisplay : MonoBehaviour
         currentHealth = health;
         impactColor = broken ? BreakColor : ResistColor;
         string message = broken ? "ACIER PULVÉRISÉ" : rolling ? "IMPACT EN ROULANT" : "IMPACT TROP FAIBLE";
+        impactDuration = ImpactDuration;
+#if UNITY_EDITOR
+        if (!broken && AdCaptureDirector.HoldBossImpact)
+        {
+            impactDuration = 3f;
+            if (!rolling) message = $"PLUS QUE {health} PV";
+        }
+#endif
         SetReadout(message, health, impactColor);
         canvas.enabled = true;
         RenderImpact();
@@ -81,7 +90,7 @@ public sealed class BossWallDisplay : MonoBehaviour
         if (impactPlaying)
         {
             impactTime += Time.unscaledDeltaTime;
-            if (impactTime < ImpactDuration)
+            if (impactTime < impactDuration)
             {
                 RenderImpact();
                 return;
@@ -140,7 +149,7 @@ public sealed class BossWallDisplay : MonoBehaviour
         Rect safe = Screen.safeArea;
         float pulse = 1f + 0.16f * (1f - Mathf.Clamp01(impactTime / 0.26f));
         PositionPanel(new Vector2(safe.center.x, safe.yMin + safe.height * 0.73f), Vector3.one * pulse);
-        panelGroup.alpha = 1f - Mathf.InverseLerp(0.72f, ImpactDuration, impactTime);
+        panelGroup.alpha = 1f - Mathf.InverseLerp(impactDuration - 0.48f, impactDuration, impactTime);
         Color tint = impactColor;
         tint.a = 0.19f * (1f - Mathf.Clamp01(impactTime / 0.17f));
         flash.color = tint;
