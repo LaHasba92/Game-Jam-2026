@@ -20,13 +20,13 @@ public class LevelManager : MonoBehaviour
 
     private void OnEnable()
     {
-        wall.HitResolved += OnWallHit;
+        if (wall != null) wall.HitResolved += OnWallHit;
         GameEvents.OnStateChanged += OnStateChanged;
     }
 
     private void OnDisable()
     {
-        wall.HitResolved -= OnWallHit;
+        if (wall != null) wall.HitResolved -= OnWallHit;
         GameEvents.OnStateChanged -= OnStateChanged;
     }
 
@@ -41,9 +41,9 @@ public class LevelManager : MonoBehaviour
 
     private void Start()
     {
-        if (walls == null || walls.Length == 0)
+        if (wall == null || walls == null || walls.Length == 0 || System.Array.Exists(walls, entry => entry == null))
         {
-            Debug.LogError("LevelManager : la liste Walls est vide. Glisse Level_01 a Level_10 dedans.");
+            Debug.LogError("LevelManager : assigne le WallController et les fiches de mur.");
             enabled = false;
             return;
         }
@@ -53,6 +53,7 @@ public class LevelManager : MonoBehaviour
     // Appelee au debut de chaque partie (plus tard : par le GameManager de Benji).
     public void StartNewRun()
     {
+        if (!isActiveAndEnabled || wall == null || walls == null || walls.Length == 0 || walls[0] == null) return;
         wallIndex = 0;
         wall.HideAllWalls();
         PlaceWall();
@@ -68,6 +69,11 @@ public class LevelManager : MonoBehaviour
         }
     }
 
+    private void OnDestroy()
+    {
+        if (generated != null) Destroy(generated);
+    }
+
     private void PlaceWall()
     {
         LevelDefinition next = GetWall(wallIndex);
@@ -81,12 +87,13 @@ public class LevelManager : MonoBehaviour
     // pour ne pas poser d'objets contre un mur.
     public float WallDistance(int index)
     {
+        if (walls == null || walls.Length == 0) return float.PositiveInfinity;
         if (index < walls.Length)
         {
-            return walls[index].wallDistance;
+            return walls[index] != null ? walls[index].wallDistance : float.PositiveInfinity;
         }
         int extra = index - (walls.Length - 1);
-        return walls[walls.Length - 1].wallDistance * Mathf.Pow(distanceGrowth, extra);
+        return walls[walls.Length - 1] != null ? walls[walls.Length - 1].wallDistance * Mathf.Pow(Mathf.Max(1.01f, distanceGrowth), extra) : float.PositiveInfinity;
     }
 
     // Les murs de la liste, puis des murs calcules a partir du dernier.
@@ -101,9 +108,8 @@ public class LevelManager : MonoBehaviour
             generated = ScriptableObject.CreateInstance<LevelDefinition>();
         }
         LevelDefinition last = walls[walls.Length - 1];
-        int extra = index - (walls.Length - 1);
         generated.levelNumber = index + 1;
-        generated.wallDistance = last.wallDistance * Mathf.Pow(distanceGrowth, extra);
+        generated.wallDistance = WallDistance(index);
         generated.zone = last.zone;
         generated.wallPrefab = last.wallPrefab;
         return generated;

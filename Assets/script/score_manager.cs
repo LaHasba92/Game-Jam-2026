@@ -8,7 +8,7 @@ public class score_manager : MonoBehaviour
 
     void Start()
     {
-        // Charge le score sauvegardé (0 par défaut lors de la première partie)
+        // Charge le score sauvegardï¿½ (0 par dï¿½faut lors de la premiï¿½re partie)
         scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
         MettreAJourAffichage();
     }
@@ -16,7 +16,7 @@ public class score_manager : MonoBehaviour
     public void AjouterPoints(int points)
     {
         scoreActuel += points;
-        // Sauvegarde immédiatement le nouveau score sur l'appareil
+        // Sauvegarde immï¿½diatement le nouveau score sur l'appareil
         PlayerPrefs.SetInt("ScoreSauvegarde", scoreActuel);
         PlayerPrefs.Save();
         MettreAJourAffichage();
@@ -24,7 +24,8 @@ public class score_manager : MonoBehaviour
 
     private void MettreAJourAffichage()
     {
-        // Conserve la surbrillance jaune à chaque mise à jour du score
+        // Conserve la surbrillance jaune ï¿½ chaque mise ï¿½ jour du score
+        if (texteScore == null) return;
         texteScore.text = "<mark=#FFFF0066>Score : " + scoreActuel + "</mark>";
     }
 }
