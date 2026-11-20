@@ -27,6 +27,15 @@ public class LauncherController : MonoBehaviour
     [SerializeField] private float perfectZone = 0.12f;        // les 12 derniers % de la jauge = x1,25
     [SerializeField] private float previewDuration = 1.5f;     // s de trajectoire montree
 
+    // Appele par UpgradeApplier au debut de chaque partie (valeurs des ameliorations de Nathan)
+    public void SetUpgrades(float power, float launcherPower, float maxAngle)
+    {
+        basePower = power;
+        launcherMultiplier = launcherPower;
+        maxElevation = maxAngle;
+        Elevation = Mathf.Min(Elevation, maxElevation);
+    }
+
     public bool IsAiming { get; private set; }
     public float Gauge { get; private set; }                    // 0 a 1, pour l'interface de Hugo
     public bool IsPerfect => Gauge >= 1f - perfectZone;
