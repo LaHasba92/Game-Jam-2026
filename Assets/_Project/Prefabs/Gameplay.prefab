@@ -49,7 +49,7 @@ MonoBehaviour:
   defaultWallPrefab: {fileID: 9099409897368018457, guid: 3dade7ea473138c4590e10ad03419436, type: 3}
   missMarker: {fileID: 0}
   reboundFactor: -0.3
-  corridorHeight: 0
+  corridorHeight: 25
 --- !u!114 &113981693328875379
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -457,7 +457,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WorldStreamer
   target: {fileID: 9219963014728155602}
   levelManager: {fileID: 113981693328875379}
-  chunkPrefab: {fileID: 1692495808876738090, guid: 7fac5bb6923c9954a8e0d02863bb089d, type: 3}
+  chunkPrefab: {fileID: 9005812043363150978, guid: c818c8ee8e011074da60b029223865be, type: 3}
   chunkLength: 50
   chunksAhead: 6
   chunksBehind: 1

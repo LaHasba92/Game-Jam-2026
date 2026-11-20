@@ -47,6 +47,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GroundObject
   type: 0
   radius: 1
+  fullWidth: 1
+  length: 2
+  modelWidth: 2
 --- !u!1 &4998359558508820365
 GameObject:
   m_ObjectHideFlags: 0

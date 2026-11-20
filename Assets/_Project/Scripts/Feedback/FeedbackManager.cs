@@ -28,6 +28,7 @@ public class FeedbackManager : MonoBehaviour
     [SerializeField] private float punchDuration = 0.15f;
 
     private Coroutine timeRoutine;
+    private int combo;   // murs casses depuis le dernier contact avec le sol
     private string popupText;
     private float popupStart = -10f;
     private Vector3 launcherBaseScale = Vector3.one;
@@ -36,6 +37,10 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnEnable()
     {
+        if (projectile != null)
+        {
+            projectile.GroundTouched += ResetCombo;
+        }
         GameEvents.OnWallBroken += OnWallBroken;
         GameEvents.OnShotFired += OnShotFired;
         GameEvents.OnRunEnded += OnRunEnded;
@@ -43,6 +48,10 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnDisable()
     {
+        if (projectile != null)
+        {
+            projectile.GroundTouched -= ResetCombo;
+        }
         GameEvents.OnWallBroken -= OnWallBroken;
         GameEvents.OnShotFired -= OnShotFired;
         GameEvents.OnRunEnded -= OnRunEnded;
@@ -61,7 +70,8 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnWallBroken(int wallNumber)
     {
-        ShowPopup(wallNumber == 1 ? "POW !" : $"COMBO x{wallNumber}");
+        ++combo;
+        ShowPopup(combo == 1 ? "POW !" : $"COMBO x{combo}");
 
         if (timeRoutine != null)
         {
@@ -103,8 +113,14 @@ public class FeedbackManager : MonoBehaviour
 
     // --- Lacher : la fronde rebondit -------------------------------------------------------
 
+    private void ResetCombo()
+    {
+        combo = 0;
+    }
+
     private void OnShotFired(ShotInfo shot)
     {
+        combo = 0;
         if (launcherVisual != null)
         {
             StartCoroutine(PunchLauncher());
