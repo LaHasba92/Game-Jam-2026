@@ -11,6 +11,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     public const int SequenceSeconds = 30;
     private const float TransitionHalfDuration = 0.18f;
+    private const float CanonLeadIn = 6.25f;
     private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
 
     private static AdCaptureDirector current;
@@ -38,7 +39,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private float frameDelta;
     private float takeTime;
     private float sequenceStart = -1f;
-    private float slowdownUntil = -1f;
     private bool manualTransition;
     private int shopCue;
     private float impactTime = -1f;
@@ -146,12 +146,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
             if (fraction >= 1f) manualTransition = false;
         }
 
-        if (slowdownUntil >= 0f && clock >= slowdownUntil)
-        {
-            Time.timeScale = 1f;
-            slowdownUntil = -1f;
-        }
-
         if (take == Take.Shop)
         {
             float elapsed = clock - takeTime;
@@ -215,7 +209,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         StopAllCoroutines();
         StopFeedback();
         Time.timeScale = 1f;
-        slowdownUntil = -1f;
         launcher.ClearCaptureAim();
         launcher.enabled = false;
         if (gameCamera != null) gameCamera.enabled = false;
@@ -263,7 +256,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
             yield break;
         }
 
-        float leadIn = canon ? 4.3f : 2f;
+        float leadIn = canon ? CanonLeadIn : 2f;
         while (clock - takeTime < leadIn) yield return null;
 
         float aimDuration = canon ? 1.04f : 0.56f;
@@ -294,8 +287,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (!hasFired || (take != Take.Miss && take != Take.Canon)) return;
 
         AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Break);
-        Time.timeScale = take == Take.Canon ? 0.32f : 0.55f;
-        slowdownUntil = clock + (take == Take.Canon ? 0.38f : 0.22f);
     }
 
     private void OnShotEnded(RunResult result)
@@ -311,8 +302,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
         overlay.Clear(); // les PV du mur prennent le relais du HUD de vol
         impactTime = clock;
-        Time.timeScale = 0.35f;
-        slowdownUntil = clock + 3f;
         AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Steel);
     }
 
@@ -353,8 +342,18 @@ public sealed class AdCaptureDirector : MonoBehaviour
         }
 
         Vector3 launcherPosition = launcher.transform.position;
-        float cut = Mathf.Clamp01((clock - takeTime) / 2f);
         float aimDistance = Mathf.Max(7f, FitDistance(2.4f, 0f));
+        if (take == Take.Canon)
+        {
+            float reveal = Mathf.SmoothStep(0f, 1f, (clock - takeTime) / CanonLeadIn);
+            Vector3 offset = Vector3.Lerp(new Vector3(-aimDistance * 0.82f, 2.15f, -3.5f),
+                new Vector3(-aimDistance, 2.9f, -1.7f), reveal);
+            Vector3 aim = new Vector3(Mathf.Lerp(0.4f, 2.4f, reveal), 0.7f, 0f);
+            SetCamera(launcherPosition + offset, launcherPosition + aim, 1f);
+            return;
+        }
+
+        float cut = Mathf.Clamp01((clock - takeTime) / 2f);
         Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-2.5f, -1.7f, cut));
         float lead = take == Take.Miss
             ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - 1.7f) / 0.6f)
