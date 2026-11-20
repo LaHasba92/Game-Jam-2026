@@ -1,5 +1,9 @@
 fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/LowlyPoly/Free Stylized Textures/Textures.meta
 guid: 7c5927192dc9bac47bff9abd2bfad271
+========
+guid: 4a221461b85a8f747abe1bdcb0658992
+>>>>>>>> Dev:Assets/nathan_script.meta
 folderAsset: yes
 DefaultImporter:
   externalObjects: {}
