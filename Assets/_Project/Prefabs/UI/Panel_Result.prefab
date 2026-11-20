@@ -287,7 +287,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d0823ae689dc0f84592ba44a676db493, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::score_manager
-  texteScore: {fileID: 0}
+  texteScore: {fileID: 6613133576256547908}
 --- !u!1 &2637909958639421479
 GameObject:
   m_ObjectHideFlags: 0
