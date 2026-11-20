@@ -6,9 +6,34 @@ public class score_manager : MonoBehaviour
     [SerializeField] private TMP_Text texteScore;
     private int scoreActuel;
 
+    // Le meilleur score = le plus de murs casses en une partie (GDD : le but du jeu)
+    // On s'abonne dans Awake (et pas OnEnable) : les ecrans sont caches pendant le vol,
+    // et un objet cache ne recevrait pas la fin de partie.
+    void Awake()     { GameEvents.OnRunEnded += HandleRunEnded; }
+    void OnDestroy() { GameEvents.OnRunEnded -= HandleRunEnded; }
+
+    // A chaque fois que l'ecran reapparait (menu, fin), on relit le record a jour.
+    void OnEnable()
+    {
+        scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
+        MettreAJourAffichage();
+    }
+
+    void HandleRunEnded(RunResult result)
+    {
+        scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
+        if (result.wallsBroken > scoreActuel)
+        {
+            scoreActuel = result.wallsBroken;
+            PlayerPrefs.SetInt("ScoreSauvegarde", scoreActuel);
+            PlayerPrefs.Save();
+        }
+        MettreAJourAffichage();
+    }
+
     void Start()
     {
-        // Charge le score sauvegardé (0 par défaut lors de la première partie)
+        // Charge le score sauvegarde (0 par defaut lors de la premiere partie)
         scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
         MettreAJourAffichage();
     }
@@ -16,7 +41,7 @@ public class score_manager : MonoBehaviour
     public void AjouterPoints(int points)
     {
         scoreActuel += points;
-        // Sauvegarde immédiatement le nouveau score sur l'appareil
+        // Sauvegarde immediatement le nouveau score sur l'appareil
         PlayerPrefs.SetInt("ScoreSauvegarde", scoreActuel);
         PlayerPrefs.Save();
         MettreAJourAffichage();
@@ -24,7 +49,12 @@ public class score_manager : MonoBehaviour
 
     private void MettreAJourAffichage()
     {
-        // Conserve la surbrillance jaune à chaque mise à jour du score
-        texteScore.text = "<mark=#FFFF0066>Score : " + scoreActuel + "</mark>";
+        if (texteScore == null)
+        {
+            Debug.LogWarning($"score_manager sur Â« {name} Â» : la case Texte Score est vide.", this);
+            return;
+        }
+        // Conserve la surbrillance jaune e chaque mise e jour du score
+        texteScore.text = "<mark=#FFFF0066>Meilleur score : " + scoreActuel + " murs</mark>";
     }
 }

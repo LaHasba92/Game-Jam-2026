@@ -20,6 +20,14 @@ public class ProjectileController : MonoBehaviour
     [SerializeField] private float stopDelay = 0.5f;          // s
     [SerializeField] private float skipAfter = 5f;            // s de vol avant le bouton « Passer »
 
+    // Appele par UpgradeApplier au debut de chaque partie (valeurs des ameliorations de Nathan)
+    public void SetUpgrades(float drag, float bounce, float momentum)
+    {
+        physics.drag = drag;
+        physics.bounce = bounce;
+        elan = momentum;
+    }
+
     public bool IsFlying { get; private set; }
     public int WallsBroken { get; private set; }
     public float Distance => position.x;
