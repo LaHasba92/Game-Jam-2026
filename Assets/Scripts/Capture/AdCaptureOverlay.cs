@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -6,6 +7,7 @@ using UnityEngine.UI;
 /// <summary>Affiche les informations du tir et le carton final dans la vue Game.</summary>
 public sealed class AdCaptureOverlay : MonoBehaviour
 {
+    private const string StoreArt = "Assets/Scripts/Capture/Editor/Art/";
     private static readonly Color Navy = new Color32(15, 23, 38, 255);
     private static readonly Color Gold = new Color32(255, 193, 64, 255);
     private static readonly Color Mint = new Color32(110, 231, 159, 255);
@@ -239,17 +241,27 @@ public sealed class AdCaptureOverlay : MonoBehaviour
 
         RectTransform stores = RectAt("Plateformes", frame, new Vector2(0.5f, 0.20f),
             new Vector2(840f, 114f), Vector2.zero);
-        CreateStoreBadge(stores, "App Store", -205f);
-        CreateStoreBadge(stores, "Google Play", 205f);
+        CreateStoreBadge(stores, "App Store", "AppStore.png", -205f);
+        CreateStoreBadge(stores, "Google Play", "GooglePlay.png", 205f, 192f / 250f);
         endCard.SetActive(false);
     }
 
-    private void CreateStoreBadge(RectTransform parent, string label, float x)
+    private void CreateStoreBadge(RectTransform parent, string label, string file, float x, float contentHeightFraction = 1f)
     {
-        Image tile = ImageAt(label, parent, Ivory, new Vector2(0.5f, 0.5f),
-            new Vector2(375f, 106f), new Vector2(x, 0f));
-        ImageAt("Accent", tile.rectTransform, Gold, new Vector2(0.5f, 0f), new Vector2(375f, 5f), Vector2.up * 2.5f);
-        TextAt(label, tile.rectTransform, label, Navy, 49, new Vector2(348f, 76f), Vector2.zero);
+        Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(StoreArt + file);
+        Vector2 position = new Vector2(x, 0f);
+        if (texture == null)
+        {
+            TextAt(label, parent, label, Ivory, 49, new Vector2(348f, 76f), position);
+            return;
+        }
+
+        float scale = Mathf.Min(375f / texture.width, 106f / (texture.height * contentHeightFraction));
+        Vector2 size = new Vector2(texture.width, texture.height) * scale;
+        var badge = RectAt(label, parent, new Vector2(0.5f, 0.5f), size, position)
+            .gameObject.AddComponent<RawImage>();
+        badge.texture = texture;
+        badge.raycastTarget = false;
     }
 
     private static void AddShadow(Text text, Vector2 offset)
