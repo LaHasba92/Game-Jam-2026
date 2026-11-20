@@ -80,6 +80,7 @@ public class UIStateSwitcher : MonoBehaviour
     {
         SetActive(shopPanel, true);
         SetActive(menuPanel, false);
+        SetActive(resultPanel, false);   // la boutique peut aussi s'ouvrir depuis l'ecran de fin
     }
 
     public void CloseShop()

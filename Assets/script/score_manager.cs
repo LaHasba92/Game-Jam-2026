@@ -7,11 +7,21 @@ public class score_manager : MonoBehaviour
     private int scoreActuel;
 
     // Le meilleur score = le plus de murs casses en une partie (GDD : le but du jeu)
-    void OnEnable()  { GameEvents.OnRunEnded += HandleRunEnded; }
-    void OnDisable() { GameEvents.OnRunEnded -= HandleRunEnded; }
+    // On s'abonne dans Awake (et pas OnEnable) : les ecrans sont caches pendant le vol,
+    // et un objet cache ne recevrait pas la fin de partie.
+    void Awake()     { GameEvents.OnRunEnded += HandleRunEnded; }
+    void OnDestroy() { GameEvents.OnRunEnded -= HandleRunEnded; }
+
+    // A chaque fois que l'ecran reapparait (menu, fin), on relit le record a jour.
+    void OnEnable()
+    {
+        scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
+        MettreAJourAffichage();
+    }
 
     void HandleRunEnded(RunResult result)
     {
+        scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
         if (result.wallsBroken > scoreActuel)
         {
             scoreActuel = result.wallsBroken;

@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 7440360999983494875}
   - component: {fileID: 1679715434094412169}
   - component: {fileID: 4655291307833070945}
+  - component: {fileID: 9155091759936404510}
   m_Layer: 5
   m_Name: Button (3)
   m_TagString: Untagged
@@ -122,6 +123,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &9155091759936404510
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 441501226565132196}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e4acad5fa432af4e84d13a2bd90e915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeShopButton
+  stat: 3
+  definition: {fileID: 11400000, guid: 3ad68ef459e8e2b43931135bf74c35bb, type: 2}
+  titleText: {fileID: 6368888883335266412}
+  priceText: {fileID: 774381138364444614}
+  saveFileName: upgrade-test.json
 --- !u!1 &580966061462858425
 GameObject:
   m_ObjectHideFlags: 0
@@ -134,6 +152,7 @@ GameObject:
   - component: {fileID: 5974210719746431225}
   - component: {fileID: 4681440230031876578}
   - component: {fileID: 7781377678133746323}
+  - component: {fileID: 5082600375894759739}
   m_Layer: 5
   m_Name: Button
   m_TagString: Untagged
@@ -244,6 +263,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &5082600375894759739
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 580966061462858425}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e4acad5fa432af4e84d13a2bd90e915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeShopButton
+  stat: 0
+  definition: {fileID: 11400000, guid: dc31788e9ff8a0744897a1366cc04291, type: 2}
+  titleText: {fileID: 969198709940260314}
+  priceText: {fileID: 2001500095037037153}
+  saveFileName: upgrade-test.json
 --- !u!1 &886277729824609820
 GameObject:
   m_ObjectHideFlags: 0
@@ -1519,6 +1555,7 @@ GameObject:
   - component: {fileID: 224513006675411073}
   - component: {fileID: 1733655774713188921}
   - component: {fileID: 643206820094716773}
+  - component: {fileID: 4336636562126033395}
   m_Layer: 5
   m_Name: Button (1)
   m_TagString: Untagged
@@ -1629,6 +1666,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &4336636562126033395
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5334747948066831075}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e4acad5fa432af4e84d13a2bd90e915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeShopButton
+  stat: 1
+  definition: {fileID: 11400000, guid: a4c3a8b7dc0ec0948ad50304e0b9a017, type: 2}
+  titleText: {fileID: 5856657085462911144}
+  priceText: {fileID: 487065020300240262}
+  saveFileName: upgrade-test.json
 --- !u!1 &5779133525680458773
 GameObject:
   m_ObjectHideFlags: 0
@@ -2052,6 +2106,7 @@ GameObject:
   - component: {fileID: 8966014956486921945}
   - component: {fileID: 648121689634821636}
   - component: {fileID: 4065801890401630293}
+  - component: {fileID: 2808216519418540222}
   m_Layer: 5
   m_Name: Button (4)
   m_TagString: Untagged
@@ -2162,6 +2217,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &2808216519418540222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7615440911749809416}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e4acad5fa432af4e84d13a2bd90e915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeShopButton
+  stat: 4
+  definition: {fileID: 11400000, guid: 139a5a9455335d14faf9d27399837719, type: 2}
+  titleText: {fileID: 8502738595426268414}
+  priceText: {fileID: 3299867928532351984}
+  saveFileName: upgrade-test.json
 --- !u!1 &8222569923865379844
 GameObject:
   m_ObjectHideFlags: 0
@@ -2311,6 +2383,7 @@ GameObject:
   - component: {fileID: 6937996188739463010}
   - component: {fileID: 751459940015527151}
   - component: {fileID: 2798068933659336721}
+  - component: {fileID: 5568728957997743623}
   m_Layer: 5
   m_Name: Button (2)
   m_TagString: Untagged
@@ -2421,3 +2494,20 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &5568728957997743623
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8952642487565699926}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5e4acad5fa432af4e84d13a2bd90e915, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeShopButton
+  stat: 2
+  definition: {fileID: 11400000, guid: 0006243396766f846830e98dca1e2197, type: 2}
+  titleText: {fileID: 6682592862246964598}
+  priceText: {fileID: 4481431006073991383}
+  saveFileName: upgrade-test.json

@@ -69,12 +69,12 @@ public class FeedbackManager : MonoBehaviour
         }
         timeRoutine = StartCoroutine(HitStopThenSlowMotion());
 
-#if UNITY_ANDROID || UNITY_IOS
         if (vibrate)
         {
-            Handheld.Vibrate();
-        }
+#if UNITY_ANDROID || UNITY_IOS
+            Handheld.Vibrate();   // n'existe que sur telephone
 #endif
+        }
     }
 
     private IEnumerator HitStopThenSlowMotion()
