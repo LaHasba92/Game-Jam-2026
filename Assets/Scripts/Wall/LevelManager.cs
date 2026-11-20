@@ -18,8 +18,26 @@ public class LevelManager : MonoBehaviour
     // Temporaire : sera remplace par GameEvents.OnLevelLoaded.
     public event System.Action<LevelDefinition> WallPlaced;
 
-    private void OnEnable()  { wall.HitResolved += OnWallHit; }
-    private void OnDisable() { wall.HitResolved -= OnWallHit; }
+    private void OnEnable()
+    {
+        wall.HitResolved += OnWallHit;
+        GameEvents.OnStateChanged += OnStateChanged;
+    }
+
+    private void OnDisable()
+    {
+        wall.HitResolved -= OnWallHit;
+        GameEvents.OnStateChanged -= OnStateChanged;
+    }
+
+    // Bouton TIRER ou REJOUER du GameManager : nouvelle partie depuis le mur 1
+    private void OnStateChanged(GameState from, GameState to)
+    {
+        if (to == GameState.Aiming && from != GameState.Aiming)
+        {
+            StartNewRun();
+        }
+    }
 
     private void Start()
     {
@@ -45,6 +63,7 @@ public class LevelManager : MonoBehaviour
         if (result.broken)
         {
             ++wallIndex;
+            GameEvents.RaiseWallBroken(wallIndex);   // numero du mur casse : 1, 2, 3...
             PlaceWall();   // tout de suite : le boulet continue sa course vers le mur suivant
         }
     }
@@ -55,6 +74,7 @@ public class LevelManager : MonoBehaviour
         wall.ShowWall(next);
         Debug.Log($"Mur n°{wallIndex + 1} a {next.wallDistance:0} m");
         WallPlaced?.Invoke(next);
+        GameEvents.RaiseLevelLoaded(wallIndex + 1, wall);
     }
 
     // Distance du mur n° index (0 = premier), sans le placer : sert au WorldStreamer
@@ -89,12 +109,4 @@ public class LevelManager : MonoBehaviour
         return generated;
     }
 
-    // Test sandbox : R = nouvelle partie (retour au premier mur).
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            StartNewRun();
-        }
-    }
 }

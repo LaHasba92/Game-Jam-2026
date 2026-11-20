@@ -40,7 +40,40 @@ public class ProjectileController : MonoBehaviour
     private float flightTime;
     private GroundObject lastObject;
     private float pointerStartX;
-    private bool hasPlayed;   // une partie a deja eu lieu : la suivante repart du mur 1
+    private bool hasPlayed;   // sans GameManager (sandbox) : la partie suivante repart du mur 1
+    private Vector3 lastLaunchVelocity;
+    private float lastBrokenWallX;
+
+    private void OnEnable()
+    {
+        GameEvents.OnStateChanged += OnStateChanged;
+        GameEvents.OnReviveRequested += Revive;
+    }
+
+    private void OnDisable()
+    {
+        GameEvents.OnStateChanged -= OnStateChanged;
+        GameEvents.OnReviveRequested -= Revive;
+    }
+
+    private void OnStateChanged(GameState from, GameState to)
+    {
+        if (to == GameState.Aiming)
+        {
+            ResetToLauncher();
+        }
+    }
+
+    // Pub « relancer » : le boulet repart du dernier mur casse avec sa vitesse de depart.
+    private void Revive()
+    {
+        position = new Vector3(lastBrokenWallX + 1.5f, 2f, 0f);
+        velocity = lastLaunchVelocity;
+        rolling = false;
+        slowTimer = 0f;
+        flightTime = 0f;
+        IsFlying = true;
+    }
 
     private void Awake()
     {
@@ -59,13 +92,14 @@ public class ProjectileController : MonoBehaviour
         slowTimer = 0f;
         flightTime = 0f;
         lastObject = null;
+        lastBrokenWallX = 0f;
         transform.position = position;
     }
 
     // Appele par le LauncherController au lacher.
     public void Launch(Vector3 from, Vector3 launchVelocity)
     {
-        if (hasPlayed && levelManager != null)
+        if (hasPlayed && levelManager != null && GameManager.Instance == null)
         {
             levelManager.StartNewRun();   // en attendant le GameManager de Benji
         }
@@ -73,6 +107,7 @@ public class ProjectileController : MonoBehaviour
         ResetToLauncher();
         position = from;
         velocity = launchVelocity;
+        lastLaunchVelocity = launchVelocity;
         IsFlying = true;
         pointerStartX = Input.mousePosition.x;
     }
@@ -195,6 +230,7 @@ public class ProjectileController : MonoBehaviour
         if (result.broken)
         {
             ++WallsBroken;
+            lastBrokenWallX = wallX;
             velocity *= result.exitSpeedFactor;
             position.x = wallX + 1.5f;
         }
@@ -225,5 +261,6 @@ public class ProjectileController : MonoBehaviour
         };
         Debug.Log($"FIN : {WallsBroken} murs casses, {position.x:0} m");
         RunEnded?.Invoke(result);
+        GameEvents.RaiseRunEnded(result);   // le GameManager passe en Resultat
     }
 }

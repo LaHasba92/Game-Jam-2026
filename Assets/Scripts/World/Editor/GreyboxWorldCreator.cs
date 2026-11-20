@@ -22,7 +22,7 @@ public static class GreyboxWorldCreator
         MakeObject(GroundObjectType.Trampoline, PrimitiveType.Cylinder, new Vector3(0f, 0.1f, 0f),
             new Vector3(2f, 0.1f, 2f), Color.cyan, 1f);
         MakeObject(GroundObjectType.Coin, PrimitiveType.Cylinder, Vector3.zero,
-            new Vector3(0.6f, 0.05f, 0.6f), Color.yellow, 0.5f, Quaternion.Euler(90f, 0f, 0f));
+            new Vector3(0.6f, 0.05f, 0.6f), Color.yellow, 0.5f, Quaternion.Euler(0f, 0f, 90f)); // face vers le lanceur (axe X)
         MakeObject(GroundObjectType.Booster, PrimitiveType.Cube, new Vector3(0f, 0.05f, 0f),
             new Vector3(2f, 0.1f, 1.5f), new Color(1f, 0.5f, 0f), 1f);
         MakeObject(GroundObjectType.Balloon, PrimitiveType.Sphere, Vector3.zero,

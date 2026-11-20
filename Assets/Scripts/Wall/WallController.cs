@@ -100,6 +100,7 @@ public class WallController : MonoBehaviour, IWall
             ? $"MUR CASSE a {Distance:0} m !"
             : "Le boulet roule : pas de casse");
         HitResolved?.Invoke(result);
+        GameEvents.RaiseWallHit(result);   // pour toute l'equipe (UI, feedback...)
         return result;
     }
 

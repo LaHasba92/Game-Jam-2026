@@ -20,7 +20,7 @@ public class LauncherController : MonoBehaviour
     [SerializeField] private float minElevation = 5f;
     [SerializeField] private float maxSide = 15f;              // degres a gauche et a droite
     [SerializeField] private float pixelsForFullAim = 300f;    // glissement pour aller d'un bord a l'autre
-    [SerializeField] private bool invertVertical = false;      // sens du geste, a trancher au playtest
+    [SerializeField] private bool invertVertical = true;       // vrai = facon fronde : tirer vers le bas monte l'angle
     [SerializeField] private float gaugePeriod = 1.2f;         // s pour aller de 0 a 100 %
     [SerializeField] private float minGaugeMultiplier = 0.5f;
     [SerializeField] private float maxGaugeMultiplier = 1.25f;
@@ -50,7 +50,8 @@ public class LauncherController : MonoBehaviour
             return;
         }
 
-        if (!IsAiming && Input.GetMouseButtonDown(0) && Input.mousePosition.y < Screen.height * 0.5f)
+        bool canAim = GameManager.Instance == null || GameManager.Instance.CurrentState == GameState.Aiming;
+        if (!IsAiming && canAim && Input.GetMouseButtonDown(0) && Input.mousePosition.y < Screen.height * 0.5f)
         {
             IsAiming = true;
             pointerStart = Input.mousePosition;
@@ -96,7 +97,15 @@ public class LauncherController : MonoBehaviour
         SetPreviewVisible(false);
         Vector3 launchVelocity = LaunchVelocity();
         projectile.Launch(launchPoint.position, launchVelocity);
-        ShotFired?.Invoke(launchVelocity.magnitude / (basePower * launcherMultiplier));
+        float gaugeMultiplier = launchVelocity.magnitude / (basePower * launcherMultiplier);
+        ShotFired?.Invoke(gaugeMultiplier);
+        GameEvents.RaiseShotFired(new ShotInfo
+        {
+            direction = Side,
+            angle = Elevation,
+            gaugeMultiplier = gaugeMultiplier,
+            launcherIndex = 1,   // plus tard : le lanceur actif (Nathan)
+        });
     }
 
     // Les pointilles : la meme physique que le vol, sur previewDuration secondes, sans rebond.
