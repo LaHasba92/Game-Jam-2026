@@ -2,19 +2,24 @@
 using System;
 using System.Collections;
 using System.IO;
+using Unity.Collections;
 using UnityEditor.Media;
 using UnityEngine;
 
-// Enregistre la vue Game, y compris les Canvas, dans un MP4 vidéo pour le montage.
+// Enregistre la vue Game et les effets sonores de la pub dans un MP4.
 public sealed class AdCaptureRecorder : MonoBehaviour
 {
-    private const int FrameRate = 30;
-    private const int MaxFrames = 45 * FrameRate;
+    public const int FrameRate = 30;
+    private const int Channels = 2;
     private static AdCaptureRecorder current;
+
+    public static bool IsRecording => current != null && current.encoder != null;
 
     private MediaEncoder encoder;
     private RenderTexture screenTexture;
     private Texture2D frameTexture;
+    private float[] audioMix;
+    private NativeArray<float> audioFrame;
     private float previousCaptureDeltaTime;
     private bool clockChanged;
     private int frames;
@@ -38,16 +43,23 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             return;
         }
 
+        Begin(45);
+    }
+
+    public static bool Begin(int seconds)
+    {
         int width = Screen.width;
         int height = Screen.height;
         if (width != 1080 || height != 1920)
         {
             Debug.LogWarning($"Capture pub : sélectionne une Game View en 1080 × 1920. Taille actuelle : {width} × {height}.");
-            return;
+            return false;
         }
 
+        StopCurrent();
         current = new GameObject("CanonPOW — Enregistrement MP4").AddComponent<AdCaptureRecorder>();
-        current.StartRecording(width, height);
+        current.StartRecording(width, height, seconds * FrameRate);
+        return IsRecording;
     }
 
     public static void StopCurrent()
@@ -59,19 +71,29 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         Destroy(recorder.gameObject);
     }
 
-    private void StartRecording(int width, int height)
+    private void StartRecording(int width, int height, int maxFrames)
     {
         try
         {
             Directory.CreateDirectory(Folder);
             path = Path.Combine(Folder, $"CanonPOW-{DateTime.Now:yyyyMMdd-HHmmss-fff}.mp4");
-            encoder = new MediaEncoder(path, new VideoTrackAttributes
+            var video = new VideoTrackAttributes
             {
                 frameRate = new MediaRational(FrameRate),
                 width = (uint)width,
                 height = (uint)height,
                 includeAlpha = false
-            });
+            };
+            var audio = new AudioTrackAttributes
+            {
+                sampleRate = new MediaRational(AdCaptureAudio.SampleRate),
+                channelCount = Channels,
+                language = "fr"
+            };
+            encoder = new MediaEncoder(path, video, audio);
+            audioMix = new float[AdCaptureAudio.SampleRate / FrameRate * Channels];
+            audioFrame = new NativeArray<float>(audioMix.Length, Allocator.Persistent);
+            AdCaptureAudio.ResetMix();
             screenTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
             screenTexture.Create();
             frameTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
@@ -79,7 +101,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             Time.captureFramerate = FrameRate;
             clockChanged = true;
             Debug.Log($"Capture pub : enregistrement lancé. F12 pour arrêter. {path}");
-            StartCoroutine(RecordFrames());
+            StartCoroutine(RecordFrames(maxFrames));
         }
         catch (Exception exception)
         {
@@ -88,10 +110,10 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         }
     }
 
-    private IEnumerator RecordFrames()
+    private IEnumerator RecordFrames(int maxFrames)
     {
         var endOfFrame = new WaitForEndOfFrame();
-        while (frames < MaxFrames)
+        while (frames < maxFrames)
         {
             yield return endOfFrame;
             if (Screen.width != frameTexture.width || Screen.height != frameTexture.height)
@@ -116,8 +138,19 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             ScreenCapture.CaptureScreenshotIntoRenderTexture(screenTexture);
             RenderTexture.active = screenTexture;
             frameTexture.ReadPixels(new Rect(0f, 0f, frameTexture.width, frameTexture.height), 0, 0, false);
-            if (encoder.AddFrame(frameTexture)) return true;
-            Debug.LogError("Capture pub : l’encodeur MP4 a refusé une image.");
+            if (!encoder.AddFrame(frameTexture))
+            {
+                Debug.LogError("Capture pub : l’encodeur MP4 a refusé une image.");
+                return false;
+            }
+            AdCaptureAudio.FillAudioFrame(audioMix, FrameRate);
+            audioFrame.CopyFrom(audioMix);
+            if (!encoder.AddSamples(audioFrame))
+            {
+                Debug.LogError("Capture pub : l’encodeur MP4 a refusé les échantillons audio.");
+                return false;
+            }
+            return true;
         }
         catch (Exception exception)
         {
@@ -142,6 +175,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
             Destroy(screenTexture);
         }
         if (frameTexture != null) Destroy(frameTexture);
+        if (audioFrame.IsCreated) audioFrame.Dispose();
 
         try
         {

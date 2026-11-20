@@ -60,7 +60,7 @@ public sealed class BossWallDisplay : MonoBehaviour
 #if UNITY_EDITOR
         if (!broken && AdCaptureDirector.HoldBossImpact)
         {
-            impactDuration = 3f;
+            impactDuration = 3.7f;
             if (!rolling) message = $"PLUS QUE {health} PV";
         }
 #endif
@@ -89,7 +89,11 @@ public sealed class BossWallDisplay : MonoBehaviour
 
         if (impactPlaying)
         {
+#if UNITY_EDITOR
+            impactTime += AdCaptureDirector.HoldBossImpact ? AdCaptureDirector.PresentationDelta : Time.unscaledDeltaTime;
+#else
             impactTime += Time.unscaledDeltaTime;
+#endif
             if (impactTime < impactDuration)
             {
                 RenderImpact();

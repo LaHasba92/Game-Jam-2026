@@ -3,13 +3,16 @@ using UnityEditor;
 
 internal static class AdCaptureMenu
 {
+    [MenuItem("CanonPOW/Capture pub/00 - Exporter la pub complète (30 s)")]
+    private static void Export() => RunSequence(true);
+
+    [MenuItem("CanonPOW/Capture pub/00 - Prévisualiser la pub (F5)")]
+    private static void Preview() => RunSequence(false);
+
     [MenuItem("CanonPOW/Capture pub/01 - Travelling vers le mur (F6)")]
     private static void Intro() => Play(AdCaptureDirector.Take.Intro);
 
-    [MenuItem("CanonPOW/Capture pub/02 - Lance-pierre en bois (F7)")]
-    private static void Slingshot() => Play(AdCaptureDirector.Take.Slingshot);
-
-    [MenuItem("CanonPOW/Capture pub/03 - Tir rate (F8)")]
+    [MenuItem("CanonPOW/Capture pub/02 - Lance-pierre et tir raté (F7 ou F8)")]
     private static void Miss() => Play(AdCaptureDirector.Take.Miss);
 
     [MenuItem("CanonPOW/Capture pub/04 - Boutique (F9)")]
@@ -46,5 +49,13 @@ internal static class AdCaptureMenu
             AdCaptureDirector.PlayTake(take);
         else
             EditorUtility.DisplayDialog("Capture pub", "Ouvre la scène Game, clique sur Play, puis choisis ton plan.", "OK");
+    }
+
+    private static void RunSequence(bool record)
+    {
+        if (EditorApplication.isPlaying)
+            AdCaptureDirector.PlaySequence(record);
+        else
+            EditorUtility.DisplayDialog("Capture pub", "Ouvre la scène Game et clique sur Play.", "OK");
     }
 }

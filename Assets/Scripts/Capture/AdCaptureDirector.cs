@@ -7,14 +7,17 @@ using UnityEngine;
 [DefaultExecutionOrder(200)]
 public sealed class AdCaptureDirector : MonoBehaviour
 {
-    public enum Take { Intro, Slingshot, Miss, Shop, Canon, EndCard }
+    public enum Take { Intro, Miss, Shop, Canon, EndCard }
+
+    public const int SequenceSeconds = 30;
+    private const float TransitionHalfDuration = 0.18f;
+    private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
 
     private static AdCaptureDirector current;
     public static bool HoldBossImpact => current != null && current.take == Take.Canon;
+    public static float PresentationDelta => current != null ? current.frameDelta : Time.unscaledDeltaTime;
 
     private readonly Dictionary<Canvas, bool> sceneCanvases = new Dictionary<Canvas, bool>();
-    private readonly Dictionary<RectTransform, (Vector2 position, Vector3 scale)> shopLayout =
-        new Dictionary<RectTransform, (Vector2 position, Vector3 scale)>();
     private Camera view;
     private CameraDirector gameCamera;
     private GameManager game;
@@ -23,14 +26,21 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private ProjectileController projectile;
     private LevelManager levels;
     private WallController wall;
-    private UIStateSwitcher ui;
     private FeedbackManager feedback;
     private AdCaptureOverlay overlay;
+    private AdCaptureShop shop;
+    private AdCaptureTransition transition;
     private LevelDefinition boss;
     private float bossHeight;
     private int bossIndex;
     private float originalFieldOfView;
+    private float clock;
+    private float frameDelta;
     private float takeTime;
+    private float sequenceStart = -1f;
+    private float slowdownUntil = -1f;
+    private bool manualTransition;
+    private int shopCue;
     private float impactTime = -1f;
     private bool feedbackEnabled;
     private bool launcherEnabled;
@@ -40,19 +50,26 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     public static void PlayTake(Take next)
     {
-        if (current == null)
-        {
-            var root = new GameObject("CanonPOW — Capture pub");
-            var director = root.AddComponent<AdCaptureDirector>();
-            if (!director.Connect())
-            {
-                Destroy(root);
-                return;
-            }
-            current = director;
-        }
+        AdCaptureDirector director = GetOrCreate();
+        if (director != null) director.ChooseTake(next);
+    }
 
-        current.StartTake(next);
+    public static void PlaySequence(bool record)
+    {
+        AdCaptureDirector director = GetOrCreate();
+        if (director == null || (record && !AdCaptureRecorder.Begin(SequenceSeconds))) return;
+        director.StartSequence();
+    }
+
+    private static AdCaptureDirector GetOrCreate()
+    {
+        if (current != null) return current;
+
+        var root = new GameObject("CanonPOW — Capture pub");
+        var director = root.AddComponent<AdCaptureDirector>();
+        if (director.Connect()) return current = director;
+        Destroy(root);
+        return null;
     }
 
     public static void Exit()
@@ -69,11 +86,10 @@ public sealed class AdCaptureDirector : MonoBehaviour
         projectile = FindFirstObjectByType<ProjectileController>();
         levels = FindFirstObjectByType<LevelManager>();
         wall = FindFirstObjectByType<WallController>();
-        ui = FindFirstObjectByType<UIStateSwitcher>();
         feedback = FindFirstObjectByType<FeedbackManager>();
 
         if (view == null || game == null || launcher == null || models == null ||
-            projectile == null || levels == null || wall == null || ui == null)
+            projectile == null || levels == null || wall == null)
         {
             Debug.LogError("Capture pub : ouvre la scène Game et lance Play avant de choisir un plan.");
             return false;
@@ -102,19 +118,96 @@ public sealed class AdCaptureDirector : MonoBehaviour
         feedbackEnabled = feedback != null && feedback.enabled;
         launcherEnabled = launcher.enabled;
         overlay = gameObject.AddComponent<AdCaptureOverlay>();
+        shop = gameObject.AddComponent<AdCaptureShop>();
+        transition = gameObject.AddComponent<AdCaptureTransition>();
         projectile.RunEnded += OnShotEnded;
+        GameEvents.OnWallBroken += OnWallBroken;
         return true;
     }
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.F6)) StartTake(Take.Intro);
-        else if (Input.GetKeyDown(KeyCode.F7)) StartTake(Take.Slingshot);
-        else if (Input.GetKeyDown(KeyCode.F8)) StartTake(Take.Miss);
-        else if (Input.GetKeyDown(KeyCode.F9)) StartTake(Take.Shop);
-        else if (Input.GetKeyDown(KeyCode.F10)) StartTake(Take.Canon);
-        else if (Input.GetKeyDown(KeyCode.F11)) StartTake(Take.EndCard);
+        frameDelta = AdCaptureRecorder.IsRecording ? 1f / AdCaptureRecorder.FrameRate : Time.unscaledDeltaTime;
+        clock += frameDelta;
+
+        if (Input.GetKeyDown(KeyCode.F5)) StartSequence();
+        else if (Input.GetKeyDown(KeyCode.F6)) ChooseTake(Take.Intro);
+        else if (Input.GetKeyDown(KeyCode.F7) || Input.GetKeyDown(KeyCode.F8)) ChooseTake(Take.Miss);
+        else if (Input.GetKeyDown(KeyCode.F9)) ChooseTake(Take.Shop);
+        else if (Input.GetKeyDown(KeyCode.F10)) ChooseTake(Take.Canon);
+        else if (Input.GetKeyDown(KeyCode.F11)) ChooseTake(Take.EndCard);
         else if (Input.GetKeyDown(KeyCode.F12)) AdCaptureRecorder.Toggle();
+
+        if (sequenceStart >= 0f) UpdateSequence();
+        else if (manualTransition)
+        {
+            float fraction = (clock - takeTime) / TransitionHalfDuration;
+            transition.Show(0.5f + 0.5f * fraction);
+            if (fraction >= 1f) manualTransition = false;
+        }
+
+        if (slowdownUntil >= 0f && clock >= slowdownUntil)
+        {
+            Time.timeScale = 1f;
+            slowdownUntil = -1f;
+        }
+
+        if (take == Take.Shop)
+        {
+            float elapsed = clock - takeTime;
+            shop.Show(elapsed);
+            if (shopCue == 0 && elapsed >= AdCaptureShop.PowerPurchaseTime)
+            {
+                AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Confirm);
+                shopCue = 1;
+            }
+            if (shopCue == 1 && elapsed >= AdCaptureShop.CanonPurchaseTime)
+            {
+                AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Confirm);
+                shopCue = 2;
+            }
+        }
+
+        if (hasFired && projectile.IsFlying)
+            overlay.ShowFlight(projectile.WallsBroken, projectile.Distance);
+    }
+
+    private void ChooseTake(Take next)
+    {
+        sequenceStart = -1f;
+        manualTransition = next != Take.Intro;
+        StartTake(next);
+        transition.Show(manualTransition ? 0.5f : 0f);
+    }
+
+    private void StartSequence()
+    {
+        sequenceStart = clock;
+        manualTransition = false;
+        StartTake(Take.Intro);
+        transition.Show(0f);
+    }
+
+    private void UpdateSequence()
+    {
+        float elapsed = clock - sequenceStart;
+        Take next = elapsed < CutTimes[0] ? Take.Intro
+            : elapsed < CutTimes[1] ? Take.Miss
+            : elapsed < CutTimes[2] ? Take.Shop
+            : elapsed < CutTimes[3] ? Take.Canon
+            : Take.EndCard;
+        if (next != take) StartTake(next);
+
+        float wipe = 0f;
+        foreach (float cut in CutTimes)
+        {
+            float offset = elapsed - cut;
+            if (Mathf.Abs(offset) >= TransitionHalfDuration) continue;
+            wipe = (offset + TransitionHalfDuration) / (2f * TransitionHalfDuration);
+            break;
+        }
+        transition.Show(wipe);
+        if (elapsed >= SequenceSeconds) sequenceStart = -1f;
     }
 
     private void StartTake(Take next)
@@ -122,21 +215,24 @@ public sealed class AdCaptureDirector : MonoBehaviour
         StopAllCoroutines();
         StopFeedback();
         Time.timeScale = 1f;
-        RestoreShopLayout();
+        slowdownUntil = -1f;
         launcher.ClearCaptureAim();
         launcher.enabled = false;
         if (gameCamera != null) gameCamera.enabled = false;
         view.fieldOfView = 54f;
         overlay.Clear();
+        shop.Clear();
+        shopCue = 0;
         hasFired = false;
         impactTime = -1f;
 
         game.ChangeState(GameState.Home);
         game.Play(); // remet le projectile, la piste et les murs au départ
         take = next;
-        takeTime = Time.unscaledTime;
-        models.SetCaptureModel(next == Take.Canon ? 4 : next == Take.Shop ? -1 : 0);
-        SetSceneUi(next == Take.Shop);
+        takeTime = clock;
+        models.SetCaptureModel(next == Take.Canon ? 4 : 0);
+        SetSceneUi(false);
+        AdCaptureAudio.PlayCue(next == Take.EndCard ? AdCaptureAudio.Cue.End : AdCaptureAudio.Cue.Whoosh);
 
         switch (next)
         {
@@ -145,9 +241,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
                 wall.ShowWall(boss);
                 break;
             case Take.Shop:
-                game.ChangeState(GameState.Home);
-                ui.OpenShop();
-                FitShopToFrame();
+                shop.Show(0f);
                 break;
             case Take.Miss:
             case Take.Canon:
@@ -169,20 +263,23 @@ public sealed class AdCaptureDirector : MonoBehaviour
             yield break;
         }
 
-        if (canon) yield return new WaitForSecondsRealtime(2f);
+        float leadIn = canon ? 4.3f : 2f;
+        while (clock - takeTime < leadIn) yield return null;
 
-        const float aimDuration = 1.2f;
+        float aimDuration = canon ? 1.04f : 0.56f;
         float target = canon ? 0.96f : 0.71f;
-        for (float elapsed = 0f; elapsed < aimDuration; elapsed += Time.unscaledDeltaTime)
+        float aimStart = clock;
+        while (clock - aimStart < aimDuration)
         {
-            float gauge = Mathf.Lerp(0.12f, target, Mathf.Clamp01(elapsed / 0.87f));
+            float elapsed = clock - aimStart;
+            float gauge = Mathf.Lerp(0.12f, target, Mathf.Clamp01(elapsed / (aimDuration * 0.76f)));
             overlay.ShowGauge(gauge, gauge >= 0.88f);
             yield return null;
         }
 
         overlay.Clear();
         hasFired = true;
-        if (feedback != null) feedback.enabled = feedbackEnabled;
+        AdCaptureAudio.PlayCue(canon ? AdCaptureAudio.Cue.Cannon : AdCaptureAudio.Cue.Slingshot);
         projectile.LaunchAdTake(origin, velocity);
         GameEvents.RaiseShotFired(new ShotInfo
         {
@@ -192,13 +289,31 @@ public sealed class AdCaptureDirector : MonoBehaviour
         });
     }
 
+    private void OnWallBroken(int wallNumber)
+    {
+        if (!hasFired || (take != Take.Miss && take != Take.Canon)) return;
+
+        AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Break);
+        Time.timeScale = take == Take.Canon ? 0.32f : 0.55f;
+        slowdownUntil = clock + (take == Take.Canon ? 0.38f : 0.22f);
+    }
+
     private void OnShotEnded(RunResult result)
     {
+        if (take == Take.Miss)
+        {
+            overlay.ShowFlight(result.wallsBroken, result.distance);
+            overlay.ShowWeakOutcome(result.wallsBroken);
+            AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.WeakFail);
+            return;
+        }
         if (take != Take.Canon || result.wallsBroken != bossIndex) return;
 
-        impactTime = Time.unscaledTime;
-        StopFeedback();
+        overlay.Clear(); // les PV du mur prennent le relais du HUD de vol
+        impactTime = clock;
         Time.timeScale = 0.35f;
+        slowdownUntil = clock + 3f;
+        AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Steel);
     }
 
     private void LateUpdate()
@@ -207,7 +322,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
         if (take == Take.Intro)
         {
-            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.unscaledTime - takeTime) / 3f));
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((clock - takeTime) / 3f));
             Vector3 from = new Vector3(-7f, 3.7f, -1.6f);
             float wallDistance = FitDistance(Mathf.Max(1f, wall.WallWidth) * 0.6f, bossHeight * 0.58f);
             Vector3 to = new Vector3(boss.wallDistance - wallDistance, bossHeight * 0.46f, -0.8f);
@@ -220,11 +335,9 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
         if (impactTime >= 0f)
         {
-            float elapsed = Time.unscaledTime - impactTime;
-            if (elapsed >= 3f) Time.timeScale = 1f;
             Vector3 ball = projectile.transform.position;
             Vector3 target = new Vector3(boss.wallDistance, ball.y + 2.5f, ball.z);
-            float blend = 1f - Mathf.Exp(-3.8f * Time.unscaledDeltaTime);
+            float blend = 1f - Mathf.Exp(-3.8f * frameDelta);
             float distance = Mathf.Max(12f, FitDistance(wall.WallWidth * 0.61f, 0f));
             SetCamera(target + new Vector3(-distance, 2.8f, -1.6f), target, blend);
             return;
@@ -233,17 +346,19 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (hasFired)
         {
             Vector3 ball = projectile.transform.position;
-            float blend = 1f - Mathf.Exp(-15f * Time.unscaledDeltaTime);
+            float blend = 1f - Mathf.Exp(-15f * frameDelta);
             float distance = Mathf.Max(9f, FitDistance(wall.WallWidth * 0.61f, 0f));
             SetCamera(ball + new Vector3(-distance, 3.3f, -0.45f), ball + new Vector3(7f, 0.4f, 0f), blend);
             return;
         }
 
         Vector3 launcherPosition = launcher.transform.position;
-        float cut = Mathf.Clamp01((Time.unscaledTime - takeTime) / 2f);
+        float cut = Mathf.Clamp01((clock - takeTime) / 2f);
         float aimDistance = Mathf.Max(7f, FitDistance(2.4f, 0f));
         Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-2.5f, -1.7f, cut));
-        float lead = take == Take.Slingshot ? 0.6f : 2.4f;
+        float lead = take == Take.Miss
+            ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - 1.7f) / 0.6f)
+            : 2.4f;
         SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(lead, 0.7f, 0f), 1f);
     }
 
@@ -275,57 +390,12 @@ public sealed class AdCaptureDirector : MonoBehaviour
             if (pair.Key != null) pair.Key.enabled = visible && pair.Value;
     }
 
-    private void FitShopToFrame()
-    {
-        RectTransform panel = ui.CaptureShopPanel;
-        if (panel == null) return;
-
-        Canvas.ForceUpdateCanvases();
-        var corners = new Vector3[4];
-        Vector2 minimum = Vector2.one * float.PositiveInfinity;
-        Vector2 maximum = Vector2.one * float.NegativeInfinity;
-        foreach (Transform child in panel)
-        {
-            if (child is not RectTransform rect || !rect.gameObject.activeSelf) continue;
-            shopLayout.Add(rect, (rect.anchoredPosition, rect.localScale));
-            rect.GetWorldCorners(corners);
-            foreach (Vector3 corner in corners)
-            {
-                Vector2 point = panel.InverseTransformPoint(corner);
-                minimum = Vector2.Min(minimum, point);
-                maximum = Vector2.Max(maximum, point);
-            }
-        }
-        if (shopLayout.Count == 0) return;
-
-        Vector2 center = (minimum + maximum) * 0.5f;
-        Vector2 size = Vector2.Max(maximum - minimum, Vector2.one);
-        Vector2 available = Vector2.Max(panel.rect.size - Vector2.one * 64f, Vector2.one);
-        float scale = Mathf.Min(1f, Mathf.Min(available.x / size.x, available.y / size.y));
-        foreach (RectTransform rect in shopLayout.Keys)
-        {
-            Vector2 position = rect.localPosition;
-            rect.anchoredPosition += panel.rect.center + (position - center) * scale - position;
-            rect.localScale *= scale;
-        }
-    }
-
-    private void RestoreShopLayout()
-    {
-        foreach (var pair in shopLayout)
-        {
-            if (pair.Key == null) continue;
-            pair.Key.anchoredPosition = pair.Value.position;
-            pair.Key.localScale = pair.Value.scale;
-        }
-        shopLayout.Clear();
-    }
-
     private void OnDisable()
     {
         if (current != this) return;
 
         current = null;
+        GameEvents.OnWallBroken -= OnWallBroken;
         StopAllCoroutines();
         AdCaptureRecorder.StopCurrent();
         if (!Application.isPlaying || game == null || projectile == null || models == null ||
@@ -333,7 +403,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
             return;
 
         Time.timeScale = 1f;
-        RestoreShopLayout();
         projectile.RunEnded -= OnShotEnded;
         projectile.ResetToLauncher();
         models.SetCaptureModel(-1);
@@ -343,6 +412,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (feedback != null) feedback.enabled = feedbackEnabled;
         SetSceneUi(true);
         overlay.Clear();
+        shop.Clear();
+        transition.Show(0f);
         game.ChangeState(GameState.Home);
         game.Play();
         game.ChangeState(GameState.Home);

@@ -3,27 +3,36 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>Affiche la jauge et le carton final dans la vue Game.</summary>
+/// <summary>Affiche les informations du tir et le carton final dans la vue Game.</summary>
 public sealed class AdCaptureOverlay : MonoBehaviour
 {
     private static readonly Color Navy = new Color32(15, 23, 38, 255);
     private static readonly Color Gold = new Color32(255, 193, 64, 255);
     private static readonly Color Mint = new Color32(110, 231, 159, 255);
     private static readonly Color Ivory = new Color32(255, 249, 231, 255);
+    private static readonly Color Coral = new Color32(255, 126, 94, 255);
+    private const float ComboDuration = 0.68f;
 
     private Canvas canvas;
     private GameObject gauge;
+    private GameObject flightHud;
     private GameObject endCard;
     private RectTransform needle;
     private Text gaugeLabel;
+    private Text wallLabel;
+    private Text distanceLabel;
+    private Text comboLabel;
+    private RectTransform weakBanner;
     private Font font;
+    private int displayedWalls = -1;
+    private int displayedMeters = -1;
+    private float comboTime;
+    private float weakTime;
 
     public void ShowGauge(float value, bool perfect)
     {
         EnsureCanvas();
-        endCard.SetActive(false);
-        gauge.SetActive(true);
-        canvas.enabled = true;
+        SetView(gauge);
 
         Vector2 needleAnchor = new Vector2(Mathf.Clamp01(value), 0.5f);
         needle.anchorMin = needleAnchor;
@@ -32,17 +41,59 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         gaugeLabel.color = perfect ? Mint : Ivory;
     }
 
+    public void ShowFlight(int wallsBroken, float distance)
+    {
+        EnsureCanvas();
+        SetView(flightHud);
+
+        if (wallsBroken > displayedWalls && wallsBroken > 0 && !weakBanner.gameObject.activeSelf)
+        {
+            comboLabel.text = wallsBroken == 1 ? "POW!" : $"COMBO ×{wallsBroken}";
+            comboTime = 0f;
+            comboLabel.color = Gold;
+            comboLabel.rectTransform.localScale = Vector3.one;
+            comboLabel.rectTransform.anchoredPosition = Vector2.zero;
+            comboLabel.gameObject.SetActive(true);
+        }
+
+        SetWallCount(wallsBroken);
+        int meters = Mathf.FloorToInt(Mathf.Max(0f, distance));
+        if (meters != displayedMeters)
+        {
+            displayedMeters = meters;
+            distanceLabel.text = $"{meters} m";
+        }
+    }
+
+    public void ShowWeakOutcome(int wallsBroken)
+    {
+        EnsureCanvas();
+        SetView(flightHud);
+        SetWallCount(wallsBroken);
+        comboLabel.gameObject.SetActive(false);
+        if (weakBanner.gameObject.activeSelf) return;
+
+        weakTime = 0f;
+        weakBanner.localScale = Vector3.one * 0.88f;
+        weakBanner.gameObject.SetActive(true);
+    }
+
     public void ShowEndCard()
     {
         EnsureCanvas();
-        gauge.SetActive(false);
-        endCard.SetActive(true);
-        canvas.enabled = true;
+        SetView(endCard);
     }
 
     public void Clear()
     {
-        if (canvas != null) canvas.enabled = false;
+        if (canvas == null) return;
+
+        canvas.enabled = false;
+        comboLabel.gameObject.SetActive(false);
+        weakBanner.gameObject.SetActive(false);
+        displayedWalls = -1;
+        displayedMeters = -1;
+        distanceLabel.text = "0 m";
     }
 
     private void OnDisable() => Clear();
@@ -50,6 +101,46 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     private void OnDestroy()
     {
         if (canvas != null) Destroy(canvas.gameObject);
+    }
+
+    private void Update()
+    {
+        if (canvas == null || !canvas.enabled || !flightHud.activeSelf) return;
+
+        if (comboLabel.gameObject.activeSelf)
+        {
+            comboTime += AdCaptureDirector.PresentationDelta;
+            float punch = Mathf.Sin(Mathf.Clamp01(comboTime / 0.26f) * Mathf.PI);
+            comboLabel.rectTransform.localScale = Vector3.one * (1f + 0.16f * punch);
+            comboLabel.rectTransform.anchoredPosition = Vector2.up * (38f * comboTime);
+            Color fade = Gold;
+            fade.a = 1f - Mathf.InverseLerp(0.37f, ComboDuration, comboTime);
+            comboLabel.color = fade;
+            if (comboTime >= ComboDuration) comboLabel.gameObject.SetActive(false);
+        }
+
+        if (weakBanner.gameObject.activeSelf && weakTime < 0.24f)
+        {
+            weakTime += AdCaptureDirector.PresentationDelta;
+            float progress = Mathf.Clamp01(weakTime / 0.24f);
+            float scale = Mathf.Lerp(0.88f, 1f, progress) + Mathf.Sin(progress * Mathf.PI) * 0.08f;
+            weakBanner.localScale = Vector3.one * scale;
+        }
+    }
+
+    private void SetView(GameObject view)
+    {
+        gauge.SetActive(view == gauge);
+        flightHud.SetActive(view == flightHud);
+        endCard.SetActive(view == endCard);
+        canvas.enabled = true;
+    }
+
+    private void SetWallCount(int wallsBroken)
+    {
+        if (displayedWalls == wallsBroken) return;
+        displayedWalls = wallsBroken;
+        wallLabel.text = wallsBroken == 1 ? "1 MUR" : $"{wallsBroken} MURS";
     }
 
     private void EnsureCanvas()
@@ -70,7 +161,35 @@ public sealed class AdCaptureOverlay : MonoBehaviour
 
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         CreateGauge(root.transform);
+        CreateFlightHud(root.transform);
         CreateEndCard(root.transform);
+    }
+
+    private void CreateFlightHud(Transform parent)
+    {
+        RectTransform hud = RectAt("Vol", parent, Vector2.zero, Vector2.zero, Vector2.zero);
+        hud.anchorMin = Vector2.zero;
+        hud.anchorMax = Vector2.one;
+        flightHud = hud.gameObject;
+
+        RectTransform stats = ImageAt("Progression", hud, Navy, new Vector2(0.5f, 0.916f),
+            new Vector2(446f, 86f), Vector2.zero).rectTransform;
+        ImageAt("Accent", stats, Gold, new Vector2(0.5f, 1f), new Vector2(446f, 5f), Vector2.down * 2.5f);
+        ImageAt("Séparateur", stats, new Color32(83, 96, 109, 255),
+            new Vector2(0.5f, 0.5f), new Vector2(2f, 33f), Vector2.zero);
+        wallLabel = TextAt("Murs", stats, "0 MURS", Gold, 39, new Vector2(190f, 64f), new Vector2(-106f, 0f));
+        distanceLabel = TextAt("Distance", stats, "0 m", Ivory, 39, new Vector2(190f, 64f), new Vector2(106f, 0f));
+
+        RectTransform combo = RectAt("Combo", hud, new Vector2(0.5f, 0.78f), new Vector2(700f, 112f), Vector2.zero);
+        comboLabel = TextAt("Casse", combo, string.Empty, Gold, 84, new Vector2(686f, 106f), Vector2.zero);
+        AddShadow(comboLabel, new Vector2(5f, -6f));
+        comboLabel.gameObject.SetActive(false);
+
+        weakBanner = ImageAt("Tir trop faible", hud, Navy, new Vector2(0.5f, 0.685f),
+            new Vector2(558f, 109f), Vector2.zero).rectTransform;
+        ImageAt("Accent", weakBanner, Coral, new Vector2(0f, 0.5f), new Vector2(8f, 109f), Vector2.right * 4f);
+        TextAt("Résultat du tir", weakBanner, "TIR TROP FAIBLE", Coral, 50, new Vector2(520f, 90f), Vector2.zero);
+        weakBanner.gameObject.SetActive(false);
     }
 
     private void CreateGauge(Transform parent)
@@ -114,9 +233,7 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         logo.localEulerAngles = new Vector3(0f, 0f, 7f);
         TextAt("Canon", logo, "CANON", Ivory, 176, new Vector2(900f, 210f), new Vector2(0f, 118f));
         Text pow = TextAt("POW!", logo, "POW!", Gold, 276, new Vector2(940f, 315f), new Vector2(0f, -90f));
-        Shadow shadow = pow.gameObject.AddComponent<Shadow>();
-        shadow.effectColor = new Color32(7, 12, 21, 255);
-        shadow.effectDistance = new Vector2(9f, -11f);
+        AddShadow(pow, new Vector2(9f, -11f));
         ImageAt("Soulignement", logo, Gold, new Vector2(0.5f, 0f),
             new Vector2(330f, 13f), new Vector2(0f, 18f));
 
@@ -131,7 +248,15 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     {
         Image tile = ImageAt(label, parent, Ivory, new Vector2(0.5f, 0.5f),
             new Vector2(375f, 106f), new Vector2(x, 0f));
+        ImageAt("Accent", tile.rectTransform, Gold, new Vector2(0.5f, 0f), new Vector2(375f, 5f), Vector2.up * 2.5f);
         TextAt(label, tile.rectTransform, label, Navy, 49, new Vector2(348f, 76f), Vector2.zero);
+    }
+
+    private static void AddShadow(Text text, Vector2 offset)
+    {
+        Shadow shadow = text.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color32(7, 12, 21, 255);
+        shadow.effectDistance = offset;
     }
 
     private Text TextAt(string name, Transform parent, string value, Color color, int size, Vector2 dimensions, Vector2 position)
