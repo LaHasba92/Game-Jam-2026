@@ -28,6 +28,9 @@ public class ProjectileController : MonoBehaviour
         elan = momentum;
     }
 
+    // Le boulet retombe sur le SOL (pas sur un trampoline ni un booster) : le combo repart a zero.
+    public event System.Action GroundTouched;
+
     public bool IsFlying { get; private set; }
     public int WallsBroken { get; private set; }
     public float Distance => position.x;
@@ -161,7 +164,12 @@ public class ProjectileController : MonoBehaviour
             }
         }
 
-        BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
+        bool wasInAir = position.y > physics.radius + 0.01f;
+        bool touchedGround = BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
+        if (touchedGround && wasInAir && !IsOnBouncyObject())
+        {
+            GroundTouched?.Invoke();
+        }
         HandleGroundObjects();
         HandleWall();
 
@@ -185,6 +193,12 @@ public class ProjectileController : MonoBehaviour
             return 0f;
         }
         return Mathf.Clamp((Input.mousePosition.x - pointerStartX) / steeringPixels, -1f, 1f);
+    }
+
+    private bool IsOnBouncyObject()
+    {
+        return world != null && world.TryGetObjectAt(position, physics.radius, out GroundObject obj)
+            && (obj.type == GroundObjectType.Trampoline || obj.type == GroundObjectType.Booster);
     }
 
     private void HandleGroundObjects()

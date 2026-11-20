@@ -41,6 +41,13 @@ public static class GreyboxWorldCreator
         GroundObject obj = root.AddComponent<GroundObject>();
         obj.type = type;
         obj.radius = radius;
+        // Trampolines et boosters couvrent toute la largeur du couloir (meme longueur qu'avant)
+        if (type == GroundObjectType.Trampoline || type == GroundObjectType.Booster)
+        {
+            obj.fullWidth = true;
+            obj.length = scale.x;
+            obj.modelWidth = scale.z;
+        }
         GameObject visual = Primitive(shape, "Visual", root.transform, offset, scale, color);
         visual.transform.localRotation = rotation ?? Quaternion.identity;
         Object.DestroyImmediate(visual.GetComponent<Collider>()); // detection par calcul, pas par la physique

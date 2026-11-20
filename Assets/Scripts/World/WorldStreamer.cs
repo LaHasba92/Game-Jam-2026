@@ -139,7 +139,14 @@ public class WorldStreamer : MonoBehaviour
         for (int i = 0; i < count; ++i)
         {
             GroundObject obj = Get(rule.type);
-            obj.transform.position = new Vector3(distance + i * rule.spacing, height, side);
+            float z = side;
+            if (obj.fullWidth)
+            {
+                // Trampolines et boosters : centres, etires sur toute la largeur du couloir
+                z = 0f;
+                obj.transform.localScale = new Vector3(1f, 1f, corridorWidth / Mathf.Max(0.01f, obj.modelWidth));
+            }
+            obj.transform.position = new Vector3(distance + i * rule.spacing, height, z);
             obj.gameObject.SetActive(true);
             chunk.objects.Add(obj);
         }
@@ -185,8 +192,20 @@ public class WorldStreamer : MonoBehaviour
                 {
                     continue;
                 }
-                float d = Vector3.Distance(position, obj.transform.position);
-                if (d <= obj.radius + ballRadius && d < best)
+                float d;
+                if (obj.fullWidth)
+                {
+                    // Pleine largeur : il suffit d'etre au-dessus, pres du sol, sur sa longueur
+                    float dx = Mathf.Abs(position.x - obj.transform.position.x);
+                    bool touching = dx <= obj.length * 0.5f + ballRadius && position.y <= ballRadius + 0.6f;
+                    d = touching ? dx : float.MaxValue;
+                }
+                else
+                {
+                    d = Vector3.Distance(position, obj.transform.position);
+                    if (d > obj.radius + ballRadius) d = float.MaxValue;
+                }
+                if (d < best)
                 {
                     best = d;
                     found = obj;
