@@ -64,6 +64,11 @@ public class ProjectileController : MonoBehaviour
         captureFlight = true;
         transform.position = from;
     }
+
+    public void HoldAdTake()
+    {
+        if (captureFlight) IsFlying = false;
+    }
 #endif
 
     private void OnEnable()

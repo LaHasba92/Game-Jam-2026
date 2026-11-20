@@ -21,6 +21,15 @@ public class LevelManager : MonoBehaviour
         index = walls == null ? -1 : System.Array.FindIndex(walls, level => level != null && level.maxHealth > 0);
         return index >= 0 ? walls[index] : null;
     }
+
+    public bool StartAdAtWall(int index)
+    {
+        if (walls == null || index < 0 || index >= walls.Length || walls[index] == null) return false;
+        wallIndex = index;
+        wall.HideAllWalls();
+        PlaceWall();
+        return true;
+    }
 #endif
 
     // Temporaire : sera remplace par GameEvents.OnLevelLoaded.

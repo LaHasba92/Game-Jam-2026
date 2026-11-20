@@ -12,7 +12,7 @@ internal static class AdCaptureMenu
     [MenuItem("CanonPOW/Capture pub/00 - Prévisualiser à 1×")]
     private static void PreviewNormal() => RunSequence(false);
 
-    [MenuItem("CanonPOW/Capture pub/01 - Travelling vers le mur (F6)")]
+    [MenuItem("CanonPOW/Capture pub/01 - Accroche, un seul tir (F6)")]
     private static void Intro() => Play(AdCaptureDirector.Take.Intro);
 
     [MenuItem("CanonPOW/Capture pub/02 - Lance-pierre et tir raté (F7 ou F8)")]

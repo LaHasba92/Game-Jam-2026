@@ -13,9 +13,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public const float SlowPreviewSpeed = 0.5f;
     private const float TransitionHalfDuration = 0.18f;
     private const float CanonLeadIn = 6.25f;
-    private const float TeaserImpactTime = 0.20f;
-    private const float TeaserCutTime = 0.68f;
-    private const float TeaserWipeHalfDuration = 0.11f;
+    private const float OpeningFlightEnd = 2.9f;
     private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
 
     private static AdCaptureDirector current;
@@ -32,7 +30,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private ProjectileController projectile;
     private LevelManager levels;
     private WallController wall;
-    private WorldStreamer track;
     private FeedbackManager feedback;
     private AdCaptureOverlay overlay;
     private AdCaptureShop shop;
@@ -49,11 +46,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private bool manualTransition;
     private int shopCue;
     private float impactTime = -1f;
-    private int teaserHealth;
-    private WallHit teaserHit;
-    private bool teaserHitPlayed;
-    private bool teaserFinished;
-    private bool trackPausedForTeaser;
+    private bool openingShot;
     private bool feedbackEnabled;
     private bool launcherEnabled;
     private bool cameraEnabled;
@@ -99,7 +92,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         projectile = FindFirstObjectByType<ProjectileController>();
         levels = FindFirstObjectByType<LevelManager>();
         wall = FindFirstObjectByType<WallController>();
-        track = FindFirstObjectByType<WorldStreamer>();
         feedback = FindFirstObjectByType<FeedbackManager>();
 
         if (view == null || game == null || launcher == null || models == null ||
@@ -236,7 +228,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private void StartTake(Take next)
     {
         StopAllCoroutines();
-        RestoreTrack();
         StopFeedback();
         Time.timeScale = AdCaptureRecorder.IsRecording ? 1f : previewSpeed;
         hasTake = true;
@@ -248,6 +239,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         shop.Clear();
         shopCue = 0;
         hasFired = false;
+        openingShot = false;
         impactTime = -1f;
 
         game.ChangeState(GameState.Home);
@@ -256,15 +248,12 @@ public sealed class AdCaptureDirector : MonoBehaviour
         takeTime = clock;
         models.SetCaptureModel(next == Take.Canon ? 4 : 0);
         SetSceneUi(false);
-        if (next != Take.Intro)
-            AdCaptureAudio.PlayCue(next == Take.EndCard ? AdCaptureAudio.Cue.End : AdCaptureAudio.Cue.Whoosh);
+        AdCaptureAudio.PlayCue(next == Take.EndCard ? AdCaptureAudio.Cue.End : AdCaptureAudio.Cue.Whoosh);
 
         switch (next)
         {
             case Take.Intro:
-                wall.HideAllWalls();
-                wall.ShowWall(boss);
-                PrepareIntro();
+                StartOpeningShot();
                 break;
             case Take.Shop:
                 shop.Show(0f);
@@ -282,7 +271,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private IEnumerator PlayShot(bool canon)
     {
         Vector3 origin = launcher.CaptureLaunchOrigin;
-        if (!TryPrepareShot(canon, origin, out Vector3 velocity, out _))
+        if (!TryPrepareShot(canon, origin, out Vector3 velocity))
         {
             Debug.LogError("Capture pub : aucune trajectoire trouvée. Vérifie les distances et les PV des murs.");
             yield break;
@@ -314,74 +303,40 @@ public sealed class AdCaptureDirector : MonoBehaviour
         });
     }
 
-    private bool TryPrepareShot(bool canon, Vector3 origin, out Vector3 velocity, out WallHit nearMiss)
+    private bool TryPrepareShot(bool canon, Vector3 origin, out Vector3 velocity)
     {
         projectile.SetUpgrades(canon ? 0.04f : 0.10f, canon ? 0.70f : 0.45f, canon ? 0.85f : 0.60f);
-        return AdCaptureFlight.TryFind(canon, origin, projectile, levels, bossIndex, out velocity, out nearMiss);
+        return AdCaptureFlight.TryFind(canon, origin, projectile, levels, bossIndex, out velocity);
     }
 
-    private void PrepareIntro()
+    private void StartOpeningShot()
     {
-        teaserHealth = 0;
-        teaserHitPlayed = false;
-        teaserFinished = false;
-        if (TryPrepareShot(true, launcher.CaptureLaunchOrigin, out _, out teaserHit))
-            teaserHealth = WallRules.HealthAfterImpact(teaserHit, boss.maxHealth, boss.maxHealth, boss.fullHealthBreakSpeed);
-
-        if (teaserHealth == 0)
+        int previousWall = bossIndex - 1;
+        if (!levels.StartAdAtWall(previousWall))
         {
-            AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Whoosh);
+            wall.ShowWall(boss);
             return;
         }
 
-        // Le décor est déjà présent jusqu'au boss. On garde les tronçons en place pendant le flash-forward.
-        trackPausedForTeaser = track != null && track.enabled;
-        if (trackPausedForTeaser) track.enabled = false;
+        // Ouvre sur un tir déjà en vol. Le mur en pierre cède, puis le boss entre dans le cadre.
+        float wallX = levels.WallDistance(previousWall);
+        projectile.SetUpgrades(0.10f, 0.45f, 0.60f);
+        projectile.LaunchAdTake(new Vector3(Mathf.Max(0f, wallX - 22f), 2.6f, 0f),
+            new Vector3(22f, 4.9f, 0f));
+        openingShot = true;
+        GameEvents.RaiseShotFired(new ShotInfo { angle = 12.6f, gaugeMultiplier = 1f, launcherIndex = 0 });
     }
 
     private void UpdateIntro()
     {
         float elapsed = clock - takeTime;
-        overlay.ShowHook(teaserHealth, elapsed, TeaserImpactTime);
-        if (teaserHealth == 0) return;
-
-        if (elapsed < TeaserCutTime)
-        {
-            Vector3 end = new Vector3(boss.wallDistance - projectile.Physics.radius, teaserHit.impactHeight, teaserHit.impactSide);
-            float travel = Mathf.Clamp01(elapsed / TeaserImpactTime);
-            projectile.transform.position = end - Vector3.right * (1f - travel) * 5.4f;
-            if (elapsed >= TeaserImpactTime && !teaserHitPlayed)
-            {
-                teaserHitPlayed = true;
-                WallHitResult result = wall.ApplyHit(teaserHit);
-                StartCoroutine(wall.PlayHit(result));
-                AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Steel);
-            }
-        }
-        else if (!teaserFinished)
-        {
-            teaserFinished = true;
-            projectile.ResetToLauncher();
-            RestoreTrack();
-            AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Whoosh);
-        }
-
-        float offset = elapsed - TeaserCutTime;
-        if (Mathf.Abs(offset) < TeaserWipeHalfDuration)
-            transition.Show((offset + TeaserWipeHalfDuration) / (2f * TeaserWipeHalfDuration));
-        else if (offset >= TeaserWipeHalfDuration && offset < 2f)
-            transition.Show(0f);
-    }
-
-    private void RestoreTrack()
-    {
-        if (trackPausedForTeaser && track != null) track.enabled = true;
-        trackPausedForTeaser = false;
+        overlay.ShowHook(elapsed);
+        if (openingShot && elapsed >= OpeningFlightEnd) projectile.HoldAdTake();
     }
 
     private void OnWallBroken(int wallNumber)
     {
-        if (!hasFired || (take != Take.Miss && take != Take.Canon)) return;
+        if (!openingShot && !hasFired) return;
 
         AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Break);
     }
@@ -409,16 +364,13 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (take == Take.Intro)
         {
             float elapsed = clock - takeTime;
-            if (teaserHealth > 0 && elapsed < TeaserCutTime)
+            if (openingShot)
             {
-                float recoil = teaserHitPlayed ? Mathf.Max(0f, 1f - (elapsed - TeaserImpactTime) / 0.24f) : 0f;
-                Vector3 hitPoint = new Vector3(boss.wallDistance, teaserHit.impactHeight + 1f, teaserHit.impactSide);
-                SetCamera(hitPoint + new Vector3(-12f - recoil * 0.7f, 0.9f + recoil * 0.12f, -1.1f), hitPoint, 1f);
+                FollowOpeningShot(elapsed);
                 return;
             }
 
-            float start = teaserHealth > 0 ? TeaserCutTime : 0f;
-            float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(start, CutTimes[0], elapsed));
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, CutTimes[0], elapsed));
             Vector3 from = new Vector3(-7f, 3.7f, -1.6f);
             float wallDistance = FitDistance(Mathf.Max(1f, wall.WallWidth) * 0.6f, bossHeight * 0.58f);
             Vector3 to = new Vector3(boss.wallDistance - wallDistance, bossHeight * 0.46f, -0.8f);
@@ -468,6 +420,20 @@ public sealed class AdCaptureDirector : MonoBehaviour
         SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(lead, 0.7f, 0f), 1f);
     }
 
+    private void FollowOpeningShot(float elapsed)
+    {
+        Vector3 ball = projectile.transform.position;
+        float reveal = projectile.WallsBroken > 0
+            ? Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(boss.wallDistance - 22f, boss.wallDistance - 5f, ball.x))
+            : 0f;
+        float distance = Mathf.Max(9f, FitDistance(wall.WallWidth * 0.61f, 0f));
+        Vector3 position = ball + new Vector3(-distance - reveal * 5.5f, 3.2f + reveal * 3.8f, -0.7f);
+        Vector3 focus = Vector3.Lerp(ball + new Vector3(8f, 0.65f, 0f),
+            new Vector3(boss.wallDistance, Mathf.Min(8.5f, bossHeight * 0.4f), 0f), reveal);
+        float blend = elapsed < 0.12f ? 1f : 1f - Mathf.Exp(-13f * frameDelta);
+        SetCamera(position, focus, blend);
+    }
+
     private float FitDistance(float halfWidth, float halfHeight)
     {
         float verticalTangent = Mathf.Tan(view.fieldOfView * 0.5f * Mathf.Deg2Rad);
@@ -507,7 +473,6 @@ public sealed class AdCaptureDirector : MonoBehaviour
         current = null;
         GameEvents.OnWallBroken -= OnWallBroken;
         StopAllCoroutines();
-        RestoreTrack();
         AdCaptureRecorder.StopCurrent();
         if (!Application.isPlaying || game == null || projectile == null || models == null ||
             launcher == null || view == null || overlay == null)
