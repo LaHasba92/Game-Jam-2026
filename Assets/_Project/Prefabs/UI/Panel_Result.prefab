@@ -172,7 +172,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -305, y: 65}
+  m_AnchoredPosition: {x: -60, y: 51}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5857856779487866049
@@ -322,7 +322,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -108, y: -27}
+  m_AnchoredPosition: {x: -10, y: -28}
   m_SizeDelta: {x: 347.1901, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3851892888431812757
@@ -437,6 +437,7 @@ GameObject:
   - component: {fileID: 3431031637409573456}
   - component: {fileID: 6078804704312708161}
   - component: {fileID: 3970414080145632264}
+  - component: {fileID: 172450564728367298}
   m_Layer: 5
   m_Name: Panel_Result
   m_TagString: Untagged
@@ -533,6 +534,24 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &172450564728367298
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4263136108915972283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 03c1dd837bd082c49bd0359ebb3dd2b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RunRewardManager
+  moneyText: {fileID: 2577288778064166648}
+  money: {fileID: 11400000, guid: 139a5a9455335d14faf9d27399837719, type: 2}
+  coinsPerMeter: 0.5
+  wallBonusBase: 10
+  wallBonusStep: 10
+  saveFileName: upgrade-test.json
 --- !u!1 &4423760470256044317
 GameObject:
   m_ObjectHideFlags: 0
@@ -700,7 +719,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 47, y: 65}
+  m_AnchoredPosition: {x: -168, y: 133}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2441340884405668644
@@ -797,7 +816,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_margin: {x: -4.789055, y: 0, z: -217.00758, w: -22.175882}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1061,9 +1080,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: GameManager, Assembly-CSharp
-        m_MethodName: Play
+      - m_Target: {fileID: 172450564728367298}
+        m_TargetAssemblyTypeName: RunRewardManager, Assembly-CSharp
+        m_MethodName: ClaimDouble
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

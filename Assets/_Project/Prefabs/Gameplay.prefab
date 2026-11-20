@@ -332,6 +332,60 @@ MonoBehaviour:
   maxGaugeMultiplier: 1.25
   perfectZone: 0.12
   previewDuration: 1.5
+--- !u!1 &2318358940984386820
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4834760018491522411}
+  - component: {fileID: 6182912886350343077}
+  m_Layer: 0
+  m_Name: UpgradeApplier
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4834760018491522411
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2318358940984386820}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.66034, y: 1.09271, z: -0.0037}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8295380550565229292}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6182912886350343077
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2318358940984386820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8e0b5c6fcecab64ab5e9e7fadccb5a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::UpgradeApplier
+  launcher: {fileID: 3686757024965449400}
+  projectile: {fileID: 5004139353865511174}
+  power: {fileID: 11400000, guid: dc31788e9ff8a0744897a1366cc04291, type: 2}
+  aerodynamics: {fileID: 11400000, guid: a4c3a8b7dc0ec0948ad50304e0b9a017, type: 2}
+  momentum: {fileID: 11400000, guid: 0006243396766f846830e98dca1e2197, type: 2}
+  bounce: {fileID: 11400000, guid: 3ad68ef459e8e2b43931135bf74c35bb, type: 2}
+  angle: {fileID: 0}
+  giantSlingshot: {fileID: 11400000, guid: 7dde2a1d96c85504c971ecd5ac727078, type: 2}
+  saveFileName: upgrade-test.json
+  defaultMaxAngle: 30
 --- !u!1 &2510179160932391371
 GameObject:
   m_ObjectHideFlags: 0
@@ -461,8 +515,67 @@ Transform:
   - {fileID: 7113920471113160865}
   - {fileID: 9219963014728155602}
   - {fileID: 4471032907534055083}
+  - {fileID: 5652755989924117034}
+  - {fileID: 4834760018491522411}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8955977452259929432
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5652755989924117034}
+  - component: {fileID: 2812357014874874981}
+  m_Layer: 0
+  m_Name: FeedbackManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5652755989924117034
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8955977452259929432}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.66034, y: 1.09271, z: -0.0037}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8295380550565229292}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2812357014874874981
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8955977452259929432}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80432623a0b57264082af819d84899a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FeedbackManager
+  hitStop: 0.05
+  slowMotion: 0.3
+  slowMotionScale: 0.3
+  vibrate: 1
+  popupDuration: 0.8
+  popupFontSize: 90
+  popupColor: {r: 1, g: 0.85, b: 0.1, a: 1}
+  showHud: 1
+  projectile: {fileID: 5004139353865511174}
+  hudFontSize: 60
+  launcherVisual: {fileID: 645231199772304730}
+  launcherPunch: 1.1
+  punchDuration: 0.15
 --- !u!1001 &8151083519510325386
 PrefabInstance:
   m_ObjectHideFlags: 0
