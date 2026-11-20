@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // Les 4 états du jeu (GDD version jam, section 6) :
 // Accueil → Visée → Vol → Résultat
@@ -27,7 +28,7 @@ public class GameManager : MonoBehaviour
     public RunResult LastRun { get; private set; }         // résultat de la dernière partie, pour l'UI
 
     // L'UI (Hugo) affiche le bouton « relancer » seulement si c'est vrai
-    public bool CanRevive => CurrentState == GameState.Result && !HasRevived;
+    public bool CanRevive => CurrentState == GameState.Result && !HasRevived && LastRun.reason != RunEndReason.BossDefeated;
 
     // ────────────────────────────────────────────────────────────
     // Cycle de vie Unity
@@ -55,6 +56,11 @@ public class GameManager : MonoBehaviour
         GameEvents.OnShotFired -= HandleShotFired;
         GameEvents.OnWallBroken -= HandleWallBroken;
         GameEvents.OnRunEnded -= HandleRunEnded;
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     void Start()
@@ -176,7 +182,7 @@ public class GameManager : MonoBehaviour
     // (envoyé par ProjectileController)
     void HandleRunEnded(RunResult result)
     {
-        if (CurrentState != GameState.Flying)
+        if (CurrentState != GameState.Flying && !(CurrentState == GameState.Aiming && JamRules.Misfire(result.reason)))
         {
             Debug.LogWarning($"[GameManager] Fin de partie alors qu'on est en {CurrentState}");
             return;
@@ -185,6 +191,8 @@ public class GameManager : MonoBehaviour
         LastRun = result;
         Debug.Log($"[GameManager] Fin : {result.distance:0} m, {result.wallsBroken} mur(s) cassé(s)");
         ChangeState(GameState.Result);
+        if (result.reason != RunEndReason.Distance && result.reason != RunEndReason.BossDefeated)
+            GameEvents.RaiseGameOver(result);
     }
 
     // ────────────────────────────────────────────────────────────
@@ -193,7 +201,7 @@ public class GameManager : MonoBehaviour
 
     void DebugKeys()
     {
-        if (!Input.GetKeyDown(KeyCode.N)) return;
+        if (Keyboard.current?.nKey.wasPressedThisFrame != true) return;
 
         switch (CurrentState)
         {

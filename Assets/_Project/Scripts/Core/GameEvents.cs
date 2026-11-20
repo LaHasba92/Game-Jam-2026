@@ -29,6 +29,20 @@ public static class GameEvents
     // Pub « relancer » : Andy relance le boulet depuis le dernier mur cassé
     public static event Action OnReviveRequested;
 
+    public static event Action<ChargeKind, float> OnChargeWarning;
+    public static event Action OnLauncherBroken, OnCannonExploded, OnCannonReveal;
+    public static event Action<RunResult> OnGameOver;
+    public static event Action<int> OnLauncherUnlocked;
+    public static event Action<BossImpact> OnBossWallDamaged;
+
+    public static void RaiseChargeWarning(ChargeKind kind, float strength) => OnChargeWarning?.Invoke(kind, strength);
+    public static void RaiseLauncherBroken() => OnLauncherBroken?.Invoke();
+    public static void RaiseCannonExploded() => OnCannonExploded?.Invoke();
+    public static void RaiseGameOver(RunResult run) => OnGameOver?.Invoke(run);
+    public static void RaiseLauncherUnlocked(int index) => OnLauncherUnlocked?.Invoke(index);
+    public static void RaiseCannonReveal() => OnCannonReveal?.Invoke();
+    public static void RaiseBossWallDamaged(BossImpact hit) => OnBossWallDamaged?.Invoke(hit);
+
     // ─── Méthodes pour émettre ───
     // Le « ?. » veut dire : n'appelle que si quelqu'un est abonné (sinon erreur)
 

@@ -17,6 +17,7 @@ public struct WallHitResult
 {
     public bool broken;
     public float exitSpeedFactor; // Élan (0,6 au niveau 1) si casse, sinon rebond
+    public bool bossHit;         // faux par défaut, les murs ordinaires gardent leur contrat
 }
 
 public interface IWall
@@ -35,6 +36,8 @@ public struct RunResult
     public int wallsBroken;
     public int coinsPicked;
     public bool newRecord;
+    public RunEndReason reason;
+    public float distanceToNextWall;
 }
 
 // Données de OnShotFired (GDD : visée 3D + jauge + lanceur)

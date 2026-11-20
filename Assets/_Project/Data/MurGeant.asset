@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dac6bf9a7c904cf4c9cba806505572a8, type: 3}
+  m_Name: MurGeant
+  m_EditorClassIdentifier:
+  levelNumber: 10
+  wallDistance: 1000
+  bossMaxHealth: 3000
+  damagePerSpeed: 5
+  crackThresholds:
+  - 0.75
+  - 0.5
+  - 0.25
+  bossSize: {x: 3, y: 14, z: 14}
+  bossStageModels: []
+  bossDebris: {fileID: 0}
+  bossDebrisVariants: []
+  bossDebrisCount: 24
+  burstRadius: 12
+  fragmentSize: 1.6
+  labelOffset: 1
+  labelRange: 85
+  damageLabelSeconds: 1.2
+  damageRise: 3
+  barWidthFraction: 0.24
+  zone: 3
+  wallStyle: Boss
+  wallPrefab: {fileID: 0}
