@@ -253,6 +253,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ProjectileController
   wall: {fileID: 544495205806101607}
   world: {fileID: 4348723502642903677}
+  upgrades: {fileID: 0}
   levelManager: {fileID: 113981693328875379}
   physics:
     gravity: 9.81
@@ -316,6 +317,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LauncherController
   projectile: {fileID: 5004139353865511174}
+  upgrades: {fileID: 0}
   launchPoint: {fileID: 4471032907534055083}
   dotSpacing: 0.08
   dotSize: 0.15
@@ -482,6 +484,15 @@ MonoBehaviour:
     minCount: 1
     maxCount: 1
     spacing: 1.5
+  - type: 1
+    minGap: 150
+    maxGap: 300
+    fromDistance: 1000000
+    minHeight: 0
+    maxHeight: 0
+    minCount: 1
+    maxCount: 1
+    spacing: 1.5
 --- !u!1 &6675751603489553571
 GameObject:
   m_ObjectHideFlags: 0
@@ -570,12 +581,12 @@ MonoBehaviour:
   popupDuration: 0.8
   popupFontSize: 90
   popupColor: {r: 1, g: 0.85, b: 0.1, a: 1}
-  showHud: 1
-  projectile: {fileID: 5004139353865511174}
-  hudFontSize: 60
   launcherVisual: {fileID: 645231199772304730}
   launcherPunch: 1.1
   punchDuration: 0.15
+  showHud: 1
+  hudFontSize: 60
+  projectile: {fileID: 5004139353865511174}
 --- !u!1001 &8151083519510325386
 PrefabInstance:
   m_ObjectHideFlags: 0

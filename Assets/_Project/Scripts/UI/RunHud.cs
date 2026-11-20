@@ -85,7 +85,7 @@ public class RunHud : MonoBehaviour
             float distance = projectile.Distance;
             if (recordAtStart > 0f && distance > recordAtStart) recordPassed = true;
             string recordStatus = recordPassed ? "Record dépassé !" : $"Record : {recordAtStart:0} m";
-            SetLabel(flightStats, $"{distance:0} m  ·  {projectile.WallsBroken} murs  ·  +{projectile.CoinsPicked} pièces\n{recordStatus}");
+            SetLabel(flightStats, $"{distance:0} m  ·  {projectile.WallsBroken} murs\n{recordStatus}");
             if (recordFill != null)
                 recordFill.fillAmount = recordAtStart > 0f ? Mathf.Clamp01(distance / recordAtStart) : 0f;
             if (skip != null) SetVisible(skip.gameObject, projectile.CanSkip && !paused);
@@ -123,8 +123,7 @@ public class RunHud : MonoBehaviour
         RunResult run = game.LastRun;
         int reward = projectile != null ? projectile.LastReward : 0;
         long total = (long)reward + doubledReward;
-        SetLabel(resultStats, $"{(run.newRecord || (recordAtStart > 0f && run.distance > recordAtStart) ? "Nouveau record !\n" : "")}{run.distance:0} m  ·  {run.wallsBroken} murs\n+{total} pièces, dont {run.coinsPicked} ramassées");
-        if (doubleReward != null)
+        SetLabel(resultStats, $"{(run.newRecord || (recordAtStart > 0f && run.distance > recordAtStart) ? "Nouveau record !\n" : "")}{run.distance:0} m  ·  {run.wallsBroken} murs\n+{total} pièces"); if (doubleReward != null)
         {
             doubleReward.interactable = projectile != null && reward > doubledReward;
             SetLabel(Label(doubleReward), doubledReward == 0 ? "×2 avec une pub" :
