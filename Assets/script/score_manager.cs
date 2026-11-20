@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 
-public class ScoreManager : MonoBehaviour
+public class score_manager : MonoBehaviour
 {
     [SerializeField] private TMP_Text texteScore;
     private int scoreActuel;
