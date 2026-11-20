@@ -457,7 +457,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WorldStreamer
   target: {fileID: 9219963014728155602}
   levelManager: {fileID: 113981693328875379}
-  chunkPrefab: {fileID: 9005812043363150978, guid: c818c8ee8e011074da60b029223865be, type: 3}
+  chunkPrefab: {fileID: 100493487649287383, guid: a2c9037997cae744a9d72131d48ced51, type: 3}
   chunkLength: 50
   chunksAhead: 6
   chunksBehind: 1
