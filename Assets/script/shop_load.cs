@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class SceneLoader : MonoBehaviour
+public class shop_load : MonoBehaviour
 {
     public void ChargerScene(string nomDeLaScene)
     {
