@@ -114,7 +114,8 @@ public class LevelManager : MonoBehaviour
         generated.levelNumber = index + 1;
         generated.wallDistance = last.wallDistance * Mathf.Pow(distanceGrowth, extra);
         generated.zone = last.zone;
-        generated.wallPrefab = last.wallPrefab;
+        // Le visuel du mur renforcé reste réservé au niveau configuré.
+        generated.wallPrefab = last.maxHealth > 0 ? null : last.wallPrefab;
         return generated;
     }
 
