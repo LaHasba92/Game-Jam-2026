@@ -111,7 +111,10 @@ public class WorldStreamer : MonoBehaviour
         nextSpawn = new float[activeRules.Length];
         for (int r = 0; r < activeRules.Length; ++r)
         {
-            nextSpawn[r] = Mathf.Max(activeRules[r].fromDistance, RandomRange(10f, Mathf.Max(10f, activeRules[r].maxGap)));
+            SpawnRule rule = activeRules[r];
+            // La première ligne standard tient devant le premier mur, même si elle est réduite à cinq pièces.
+            float first = rule == CoinRule ? RandomRange(20f, 30f) : RandomRange(10f, Mathf.Max(10f, rule.maxGap));
+            nextSpawn[r] = Mathf.Max(rule.fromDistance, first);
         }
         for (int i = 0; i < chunks.Count; ++i)
         {

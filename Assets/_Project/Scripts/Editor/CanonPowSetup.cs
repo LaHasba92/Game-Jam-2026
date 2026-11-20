@@ -139,6 +139,7 @@ public static class CanonPowSetup
 
         RectTransform aiming = Panel(parent, "Visée");
         Text aimStats = TextAt(aiming, "Consigne de visée", font, "", 42, 0.5f, 0.87f, 1010, 100);
+        ButtonAt(aiming, font, "PAUSE", 0.85f, 0.95f, 185, 86, hud.Pause);
         Image gauge = Bar(aiming, "Jauge de puissance", 0.09f, 0.50f, 44, 470, Image.OriginVertical.Bottom);
 
         RectTransform flying = Panel(parent, "Vol");
