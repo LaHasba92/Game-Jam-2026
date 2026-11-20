@@ -35,7 +35,7 @@ public class CameraDirector : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (projectile == null) return;
+        if (projectile == null || Time.deltaTime <= 0f) return;
         if (GameManager.Instance?.CurrentState == GameState.Aiming || GameManager.Instance?.CurrentState == GameState.Home)
         {
             holdUntil = 0f;
