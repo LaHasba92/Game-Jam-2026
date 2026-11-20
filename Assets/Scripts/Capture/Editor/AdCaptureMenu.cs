@@ -6,8 +6,11 @@ internal static class AdCaptureMenu
     [MenuItem("CanonPOW/Capture pub/00 - Exporter la pub complète (30 s)")]
     private static void Export() => RunSequence(true);
 
-    [MenuItem("CanonPOW/Capture pub/00 - Prévisualiser la pub (F5)")]
-    private static void Preview() => RunSequence(false);
+    [MenuItem("CanonPOW/Capture pub/00 - Prévisualiser à 0,5× (F5)")]
+    private static void PreviewSlow() => RunSequence(false, AdCaptureDirector.SlowPreviewSpeed);
+
+    [MenuItem("CanonPOW/Capture pub/00 - Prévisualiser à 1×")]
+    private static void PreviewNormal() => RunSequence(false);
 
     [MenuItem("CanonPOW/Capture pub/01 - Travelling vers le mur (F6)")]
     private static void Intro() => Play(AdCaptureDirector.Take.Intro);
@@ -51,10 +54,10 @@ internal static class AdCaptureMenu
             EditorUtility.DisplayDialog("Capture pub", "Ouvre la scène Game, clique sur Play, puis choisis ton plan.", "OK");
     }
 
-    private static void RunSequence(bool record)
+    private static void RunSequence(bool record, float speed = 1f)
     {
         if (EditorApplication.isPlaying)
-            AdCaptureDirector.PlaySequence(record);
+            AdCaptureDirector.PlaySequence(record, speed);
         else
             EditorUtility.DisplayDialog("Capture pub", "Ouvre la scène Game et clique sur Play.", "OK");
     }

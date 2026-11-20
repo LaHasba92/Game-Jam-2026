@@ -10,6 +10,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public enum Take { Intro, Miss, Shop, Canon, EndCard }
 
     public const int SequenceSeconds = 30;
+    public const float SlowPreviewSpeed = 0.5f;
     private const float TransitionHalfDuration = 0.18f;
     private const float CanonLeadIn = 6.25f;
     private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
@@ -37,6 +38,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private float originalFieldOfView;
     private float clock;
     private float frameDelta;
+    private float previewSpeed = 1f;
     private float takeTime;
     private float sequenceStart = -1f;
     private bool manualTransition;
@@ -46,6 +48,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private bool launcherEnabled;
     private bool cameraEnabled;
     private bool hasFired;
+    private bool hasTake;
     private Take take;
 
     public static void PlayTake(Take next)
@@ -54,11 +57,11 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (director != null) director.ChooseTake(next);
     }
 
-    public static void PlaySequence(bool record)
+    public static void PlaySequence(bool record, float speed = 1f)
     {
         AdCaptureDirector director = GetOrCreate();
         if (director == null || (record && !AdCaptureRecorder.Begin(SequenceSeconds))) return;
-        director.StartSequence();
+        director.StartSequence(record ? 1f : speed);
     }
 
     private static AdCaptureDirector GetOrCreate()
@@ -127,10 +130,13 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     private void Update()
     {
-        frameDelta = AdCaptureRecorder.IsRecording ? 1f / AdCaptureRecorder.FrameRate : Time.unscaledDeltaTime;
+        bool recording = AdCaptureRecorder.IsRecording;
+        float playbackSpeed = recording ? 1f : previewSpeed;
+        frameDelta = recording ? 1f / AdCaptureRecorder.FrameRate : Time.unscaledDeltaTime * playbackSpeed;
+        if (hasTake) Time.timeScale = playbackSpeed;
         clock += frameDelta;
 
-        if (Input.GetKeyDown(KeyCode.F5)) StartSequence();
+        if (Input.GetKeyDown(KeyCode.F5)) StartSequence(SlowPreviewSpeed);
         else if (Input.GetKeyDown(KeyCode.F6)) ChooseTake(Take.Intro);
         else if (Input.GetKeyDown(KeyCode.F7) || Input.GetKeyDown(KeyCode.F8)) ChooseTake(Take.Miss);
         else if (Input.GetKeyDown(KeyCode.F9)) ChooseTake(Take.Shop);
@@ -169,14 +175,16 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private void ChooseTake(Take next)
     {
         sequenceStart = -1f;
+        previewSpeed = 1f;
         manualTransition = next != Take.Intro;
         StartTake(next);
         transition.Show(manualTransition ? 0.5f : 0f);
     }
 
-    private void StartSequence()
+    private void StartSequence(float speed)
     {
         sequenceStart = clock;
+        previewSpeed = speed;
         manualTransition = false;
         StartTake(Take.Intro);
         transition.Show(0f);
@@ -201,14 +209,20 @@ public sealed class AdCaptureDirector : MonoBehaviour
             break;
         }
         transition.Show(wipe);
-        if (elapsed >= SequenceSeconds) sequenceStart = -1f;
+        if (elapsed >= SequenceSeconds)
+        {
+            sequenceStart = -1f;
+            previewSpeed = 1f;
+            Time.timeScale = 1f;
+        }
     }
 
     private void StartTake(Take next)
     {
         StopAllCoroutines();
         StopFeedback();
-        Time.timeScale = 1f;
+        Time.timeScale = AdCaptureRecorder.IsRecording ? 1f : previewSpeed;
+        hasTake = true;
         launcher.ClearCaptureAim();
         launcher.enabled = false;
         if (gameCamera != null) gameCamera.enabled = false;
@@ -307,7 +321,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (take == Take.EndCard) return;
+        if (!hasTake || take == Take.EndCard) return;
 
         if (take == Take.Intro)
         {
