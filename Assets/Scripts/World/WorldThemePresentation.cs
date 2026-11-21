@@ -31,6 +31,7 @@ internal sealed class WorldThemePresentation
     private Material neonSky;
     private Material landscapeMaterial;
     private Material landscapeSky;
+    private Material compatibilityMaterial;
     private Material currentMaterial;
 
     public ThemeId Selected { get; private set; }
@@ -79,23 +80,22 @@ internal sealed class WorldThemePresentation
         switch (id)
         {
             case ThemeId.Forest:
-                SetLandscape(0f);
                 SetLighting(0x9bb0a3, 31f, 158f, 0xffe6b8, 1.08f, 0xced9bb, 0x9cb29a, 0x757965);
+                SetLandscape(0f);
                 break;
             case ThemeId.Beach:
-                SetLandscape(1f);
                 SetLighting(0xa7d4de, 56f, 198f, 0xfff0d8, 1.1f, 0xd1edf2, 0xb8d6d3, 0xc9b79c);
+                SetLandscape(1f);
                 break;
             case ThemeId.Moon:
-                SetLandscape(2f);
                 SetLighting(0x2b3953, 41f, 169f, 0xd2e5ff, 0.97f, 0x798eaf, 0x5e6c84, 0x3e475a);
+                SetLandscape(2f);
                 break;
             case ThemeId.Cyberpunk:
                 if (neonMaterial == null) neonMaterial = Resources.Load<Material>("WorldThemes/DistrictNeon");
                 if (neonSky == null) neonSky = Resources.Load<Material>("WorldThemes/DistrictNeonSky");
-                currentMaterial = neonMaterial;
-                if (neonSky != null) RenderSettings.skybox = neonSky;
                 SetLighting(0x392a5c, 42f, 165f, 0xb3caff, 0.67f, 0x7165a0, 0x464581, 0x2a2148);
+                ApplyMaterials(neonMaterial, neonSky);
                 break;
         }
     }
@@ -104,13 +104,43 @@ internal sealed class WorldThemePresentation
     {
         if (landscapeMaterial == null) landscapeMaterial = CreateMaterial("WorldThemes/Landscape");
         if (landscapeSky == null) landscapeSky = CreateMaterial("WorldThemes/LandscapeSky");
-        currentMaterial = landscapeMaterial;
         if (landscapeMaterial != null) landscapeMaterial.SetFloat(LandscapeProperty, landscape);
-        if (landscapeSky != null)
+        if (landscapeSky != null) landscapeSky.SetFloat(LandscapeProperty, landscape);
+        ApplyMaterials(landscapeMaterial, landscapeSky);
+    }
+
+    private void ApplyMaterials(Material ground, Material sky)
+    {
+        bool hasUrp = GraphicsSettings.currentRenderPipeline?.renderPipelineShaderTag == "UniversalPipeline";
+        if (hasUrp && IsRenderable(ground))
         {
-            landscapeSky.SetFloat(LandscapeProperty, landscape);
-            RenderSettings.skybox = landscapeSky;
+            currentMaterial = ground;
         }
+        else
+        {
+            if (compatibilityMaterial == null)
+                compatibilityMaterial = Resources.Load<Material>("WorldThemes/MapCompatibility");
+            currentMaterial = IsRenderable(compatibilityMaterial) ? compatibilityMaterial : null;
+            string status = currentMaterial != null ? "affichage de secours activé" : "matériaux du décor indisponibles";
+            Debug.LogWarning($"Thèmes : {Selected}, {status}.");
+        }
+
+        if (hasUrp && IsRenderable(sky))
+            RenderSettings.skybox = sky;
+    }
+
+    private static bool IsRenderable(Material material)
+    {
+        Shader shader = material != null ? material.shader : null;
+        if (shader == null || !shader.isSupported || shader.name == "Hidden/InternalErrorShader" || material.passCount == 0)
+            return false;
+#if UNITY_EDITOR
+        if (!UnityEditor.ShaderUtil.IsPassCompiled(material, 0))
+            UnityEditor.ShaderUtil.CompilePass(material, 0, true);
+        return !UnityEditor.ShaderUtil.ShaderHasError(shader);
+#else
+        return true;
+#endif
     }
 
     private static Material CreateMaterial(string path)
@@ -143,10 +173,7 @@ internal sealed class WorldThemePresentation
             return Object.Instantiate(cityPrefab, parent);
 
         if (currentMaterial == null)
-        {
-            Debug.LogWarning($"Thèmes : matériau de {Selected} introuvable.");
             return Object.Instantiate(Selected == ThemeId.Forest ? forestPrefab : cityPrefab, parent);
-        }
 
         var visual = new GameObject(Selected.ToString(), typeof(MeshFilter), typeof(MeshRenderer));
         visual.transform.SetParent(parent, false);
