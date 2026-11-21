@@ -21,7 +21,7 @@ Shader "CanonPOW/Map Compatibility"
             struct Varyings
             {
                 float4 pos : SV_POSITION;
-                half3 tint : COLOR;
+                half3 tint : TEXCOORD1;
                 UNITY_FOG_COORDS(0)
             };
 
