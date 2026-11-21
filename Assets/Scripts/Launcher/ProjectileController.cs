@@ -54,13 +54,14 @@ public class ProjectileController : MonoBehaviour
     private bool hasPlayed;   // sans GameManager (sandbox) : la partie suivante repart du mur 1
     private Vector3 lastLaunchVelocity;
     private float lastBrokenWallX;
+    private ProjectileTrailEffects trailEffects;
 
 #if UNITY_EDITOR
     private bool captureFlight;
 
     public void LaunchAdTake(Vector3 from, Vector3 launchVelocity)
     {
-        Launch(from, launchVelocity);
+        StartFlight(from, launchVelocity, false);
         captureFlight = true;
         transform.position = from;
     }
@@ -81,6 +82,7 @@ public class ProjectileController : MonoBehaviour
     {
         GameEvents.OnStateChanged -= OnStateChanged;
         GameEvents.OnReviveRequested -= Revive;
+        if (trailEffects != null) trailEffects.Stop(true);
     }
 
     private void OnStateChanged(GameState from, GameState to)
@@ -100,6 +102,7 @@ public class ProjectileController : MonoBehaviour
         slowTimer = 0f;
         flightTime = 0f;
         IsFlying = true;
+        StartTrail();
     }
 
     private void Awake()
@@ -111,6 +114,7 @@ public class ProjectileController : MonoBehaviour
     // Debut d'une partie : le boulet revient sur le lanceur (appele par le GameManager de Benji).
     public void ResetToLauncher()
     {
+        if (trailEffects != null) trailEffects.Stop(true);
 #if UNITY_EDITOR
         captureFlight = false;
 #endif
@@ -129,6 +133,11 @@ public class ProjectileController : MonoBehaviour
     // Appele par le LauncherController au lacher.
     public void Launch(Vector3 from, Vector3 launchVelocity)
     {
+        StartFlight(from, launchVelocity, true);
+    }
+
+    private void StartFlight(Vector3 from, Vector3 launchVelocity, bool playTrail)
+    {
         if (hasPlayed && levelManager != null && GameManager.Instance == null)
         {
             levelManager.StartNewRun();   // en attendant le GameManager de Benji
@@ -140,6 +149,17 @@ public class ProjectileController : MonoBehaviour
         lastLaunchVelocity = launchVelocity;
         IsFlying = true;
         pointerStartX = Input.mousePosition.x;
+        if (playTrail) StartTrail();
+    }
+
+    private void StartTrail()
+    {
+        ProjectileTrails.StopPreview();
+        ProjectileTrail style = ProjectileTrails.Equipped;
+        if (style == ProjectileTrail.None) return;
+        transform.position = position;
+        if (trailEffects == null) trailEffects = gameObject.AddComponent<ProjectileTrailEffects>();
+        trailEffects.Begin(style);
     }
 
     private void Update()
@@ -168,6 +188,7 @@ public class ProjectileController : MonoBehaviour
         {
             Simulate(Time.fixedDeltaTime, true);
             transform.position = position;
+            if (trailEffects != null) trailEffects.SetSpeed(velocity.magnitude);
         }
     }
 
@@ -306,6 +327,7 @@ public class ProjectileController : MonoBehaviour
     // « Passer » : calcule la fin du vol d'un coup, sans affichage.
     public void Skip()
     {
+        if (trailEffects != null) trailEffects.Stop(true);
         for (int i = 0; i < 100000 && IsFlying; ++i)
         {
             Simulate(Time.fixedDeltaTime, false);
@@ -316,6 +338,7 @@ public class ProjectileController : MonoBehaviour
     private void EndRun()
     {
         IsFlying = false;
+        if (trailEffects != null) trailEffects.Stop(false);
         RunResult result = new RunResult
         {
             distance = position.x,

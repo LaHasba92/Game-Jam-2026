@@ -21,6 +21,9 @@ public class score_manager : MonoBehaviour
 
     void HandleRunEnded(RunResult result)
     {
+#if UNITY_EDITOR
+        if (AdCaptureDirector.IsPlayingTake) return;
+#endif
         scoreActuel = PlayerPrefs.GetInt("ScoreSauvegarde", 0);
         if (result.wallsBroken > scoreActuel)
         {
@@ -54,7 +57,6 @@ public class score_manager : MonoBehaviour
             Debug.LogWarning($"score_manager sur « {name} » : la case Texte Score est vide.", this);
             return;
         }
-        // Conserve la surbrillance jaune e chaque mise e jour du score
-        texteScore.text = "<mark=#FFFF0066>Meilleur score : " + scoreActuel + " murs</mark>";
+        texteScore.text = "Record   " + scoreActuel + (scoreActuel == 1 ? " mur" : " murs");
     }
 }

@@ -34,6 +34,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private ProjectileController projectile;
     private LevelManager levels;
     private WallController wall;
+    private WorldStreamer world;
     private FeedbackManager feedback;
     private AdCaptureOverlay overlay;
     private AdCaptureShop shop;
@@ -100,6 +101,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         projectile = FindFirstObjectByType<ProjectileController>();
         levels = FindFirstObjectByType<LevelManager>();
         wall = FindFirstObjectByType<WallController>();
+        world = FindFirstObjectByType<WorldStreamer>();
         feedback = FindFirstObjectByType<FeedbackManager>();
 
         if (view == null || game == null || launcher == null || models == null ||
@@ -239,6 +241,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         AdCaptureAudio.StopEvolution();
         StopFeedback();
         Time.timeScale = AdCaptureRecorder.IsRecording ? 1f : previewSpeed;
+        if (!hasTake && world != null) world.SetCaptureCity(true);
         hasTake = true;
         launcher.ClearCaptureAim();
         launcher.enabled = false;
@@ -530,6 +533,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         projectile.RunEnded -= OnShotEnded;
         projectile.ResetToLauncher();
         models.SetCaptureModel(-1);
+        if (hasTake && world != null) world.SetCaptureCity(false);
         launcher.enabled = launcherEnabled;
         view.fieldOfView = originalFieldOfView;
         if (gameCamera != null) gameCamera.enabled = cameraEnabled;

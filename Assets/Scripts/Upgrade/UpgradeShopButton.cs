@@ -1,4 +1,3 @@
-using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,7 +16,8 @@ public class UpgradeShopButton : MonoBehaviour
     [SerializeField] private string saveFileName = "upgrade-test.json";
 
     private Button button;
-    private string SavePath => Path.Combine(Application.persistentDataPath, saveFileName);
+    public Stat StatType => stat;
+    public UpgradeDefinition Definition => definition;
 
     private void Awake()
     {
@@ -44,19 +44,29 @@ public class UpgradeShopButton : MonoBehaviour
         Refresh();
     }
 
-    public void Buy()
+    public void Buy() => TryBuy();
+
+    public bool TryBuy()
     {
         UpgradeSaveData data = Load();
         int level = GetLevel(data);
+        if (!CanBuy(data)) return false;
+
         int cost = definition.GetCost(level);
-        if (data.coins < cost)
-        {
-            return;
-        }
         data.coins -= cost;
         SetLevel(data, level + 1);
-        File.WriteAllText(SavePath, JsonUtility.ToJson(data, true));
+        UpgradeSaveStore.Save(data, saveFileName);
         GameEvents.RaiseCoinsChanged(data.coins);   // toutes les autres cases se mettent a jour
+        return true;
+    }
+
+    public bool CanImprove(int level) =>
+        definition != null && definition.GetCost(level) > 0 && definition.GetValue(level + 1) != definition.GetValue(level);
+
+    public bool CanBuy(UpgradeSaveData data)
+    {
+        int level = GetLevel(data);
+        return CanImprove(level) && data.coins >= definition.GetCost(level);
     }
 
     private void Refresh()
@@ -76,13 +86,9 @@ public class UpgradeShopButton : MonoBehaviour
             titleText.text = $"{definition.displayName} niv. {level}\n{Format(now)} -> {Format(next)}";
         }
         if (priceText != null)
-        {
-            priceText.text = data.coins >= cost ? $"{cost} pieces" : $"{cost} pieces (manque {cost - data.coins})";
-        }
+            priceText.text = !CanImprove(level) ? "Niveau max" : data.coins >= cost ? $"{cost} pieces" : $"{cost} pieces (manque {cost - data.coins})";
         if (button != null)
-        {
-            button.interactable = data.coins >= cost;   // bouton grise s'il manque des pieces (GDD)
-        }
+            button.interactable = CanBuy(data);
     }
 
     // Les petites valeurs (Aerodynamisme 0,095) gardent 3 decimales, sinon 2.
@@ -92,7 +98,7 @@ public class UpgradeShopButton : MonoBehaviour
     }
 
     // Un niveau absent de la sauvegarde vaut 0 : on le compte comme le niveau 1.
-    private int GetLevel(UpgradeSaveData d)
+    public int GetLevel(UpgradeSaveData d)
     {
         int level = stat switch
         {
@@ -117,10 +123,5 @@ public class UpgradeShopButton : MonoBehaviour
         }
     }
 
-    private UpgradeSaveData Load()
-    {
-        return File.Exists(SavePath)
-            ? JsonUtility.FromJson<UpgradeSaveData>(File.ReadAllText(SavePath))
-            : new UpgradeSaveData();
-    }
+    private UpgradeSaveData Load() => UpgradeSaveStore.Load(saveFileName);
 }

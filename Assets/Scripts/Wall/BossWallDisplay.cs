@@ -16,6 +16,8 @@ public sealed class BossWallDisplay : MonoBehaviour
     private RectTransform canvasRect;
     private RectTransform panel;
     private CanvasGroup panelGroup;
+    private Image background;
+    private Image healthTrack;
     private Image flash;
     private Image accent;
     private Image healthFill;
@@ -28,6 +30,9 @@ public sealed class BossWallDisplay : MonoBehaviour
     private float impactTime;
     private float impactDuration = ImpactDuration;
     private Color impactColor;
+    private Color readyTint;
+    private Color breakTint;
+    private Color resistTint;
     private bool shown;
     private bool impactPlaying;
 
@@ -44,7 +49,8 @@ public sealed class BossWallDisplay : MonoBehaviour
         panel.localScale = Vector3.one;
         panelGroup.alpha = 1f;
         flash.color = Color.clear;
-        SetReadout("MUR D’ACIER", currentHealth, ReadyColor);
+        ApplyPalette();
+        SetReadout("MUR D’ACIER", currentHealth, readyTint);
     }
 
     public void Impact(int health, bool broken, bool rolling)
@@ -54,7 +60,7 @@ public sealed class BossWallDisplay : MonoBehaviour
         impactTime = 0f;
         impactPlaying = true;
         currentHealth = health;
-        impactColor = broken ? BreakColor : ResistColor;
+        impactColor = broken ? breakTint : resistTint;
         string message = broken ? "ACIER PULVÉRISÉ" : rolling ? "IMPACT EN ROULANT" : "IMPACT TROP FAIBLE";
         impactDuration = ImpactDuration;
 #if UNITY_EDITOR
@@ -116,7 +122,7 @@ public sealed class BossWallDisplay : MonoBehaviour
             impactPlaying = false;
             flash.color = Color.clear;
             panelGroup.alpha = 1f;
-            SetReadout("MUR D’ACIER", currentHealth, ReadyColor);
+            SetReadout("MUR D’ACIER", currentHealth, readyTint);
         }
 
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameState.Flying
@@ -196,7 +202,8 @@ public sealed class BossWallDisplay : MonoBehaviour
 
         flash = CreateImage("Flash", canvasRect, Color.clear);
         Stretch(flash.rectTransform, Vector2.zero, Vector2.zero);
-        panel = CreateImage("Panneau", canvasRect, new Color32(18, 24, 34, 245)).rectTransform;
+        background = CreateImage("Panneau", canvasRect, Color.clear);
+        panel = background.rectTransform;
         panel.sizeDelta = new Vector2(580f, 104f);
         panelGroup = panel.gameObject.AddComponent<CanvasGroup>();
         panelGroup.interactable = false;
@@ -212,14 +219,38 @@ public sealed class BossWallDisplay : MonoBehaviour
         title = CreateText("Titre", panel, font, TextAnchor.MiddleLeft, new Vector2(26f, 43f), new Vector2(-200f, -10f));
         counter = CreateText("Compteur", panel, font, TextAnchor.MiddleRight, new Vector2(394f, 43f), new Vector2(-24f, -10f));
 
-        Image track = CreateImage("Fond de la jauge", panel, new Color32(58, 70, 86, 255));
-        track.rectTransform.anchorMin = Vector2.zero;
-        track.rectTransform.anchorMax = Vector2.right;
-        track.rectTransform.offsetMin = new Vector2(26f, 18f);
-        track.rectTransform.offsetMax = new Vector2(-24f, 33f);
+        healthTrack = CreateImage("Fond de la jauge", panel, Color.clear);
+        healthTrack.rectTransform.anchorMin = Vector2.zero;
+        healthTrack.rectTransform.anchorMax = Vector2.right;
+        healthTrack.rectTransform.offsetMin = new Vector2(26f, 18f);
+        healthTrack.rectTransform.offsetMax = new Vector2(-24f, 33f);
 
-        healthFill = CreateImage("PV restants", track.rectTransform, ReadyColor);
+        healthFill = CreateImage("PV restants", healthTrack.rectTransform, ReadyColor);
         Stretch(healthFill.rectTransform, Vector2.zero, Vector2.zero);
+    }
+
+    private static bool IsCapture
+    {
+        get
+        {
+#if UNITY_EDITOR
+            return AdCaptureDirector.IsPlayingTake;
+#else
+            return false;
+#endif
+        }
+    }
+
+    private void ApplyPalette()
+    {
+        ThemePalette palette = ThemeCatalog.Palette;
+        bool capture = IsCapture;
+        background.color = capture ? (Color)new Color32(18, 24, 34, 245) : palette.Surface;
+        healthTrack.color = capture ? (Color)new Color32(58, 70, 86, 255) : palette.Border;
+        counter.color = capture ? Color.white : palette.Text;
+        readyTint = capture ? ReadyColor : palette.Accent;
+        breakTint = capture ? BreakColor : palette.Secondary;
+        resistTint = capture ? ResistColor : palette.Danger;
     }
 
     private static Image CreateImage(string name, Transform parent, Color color)

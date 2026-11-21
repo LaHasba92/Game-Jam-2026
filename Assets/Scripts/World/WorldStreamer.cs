@@ -22,6 +22,7 @@ public class WorldStreamer : MonoBehaviour
     [SerializeField] private Transform target;            // le boulet (en sandbox : la camera)
     [SerializeField] private LevelManager levelManager;   // pour remettre la piste a zero a chaque partie
     [SerializeField] private GameObject chunkPrefab;      // un troncon de sol de 50 m, pivot au debut
+    [SerializeField] private GameObject forestChunkPrefab; // active les thèmes sur la piste du jeu
     [SerializeField] private float chunkLength = 50f;
     [SerializeField] private int chunksAhead = 6;         // 300 m de sol visibles devant
     [SerializeField] private int chunksBehind = 1;
@@ -40,6 +41,7 @@ public class WorldStreamer : MonoBehaviour
     private class Chunk
     {
         public Transform transform;
+        public GameObject visual;
         public float start;
         public readonly List<GroundObject> objects = new List<GroundObject>();
     }
@@ -48,17 +50,78 @@ public class WorldStreamer : MonoBehaviour
     private readonly Dictionary<GroundObjectType, Stack<GroundObject>> pool = new Dictionary<GroundObjectType, Stack<GroundObject>>();
     private float[] nextSpawn;          // prochaine distance d'apparition, par regle
     private System.Random random = new System.Random();
+    private WorldThemePresentation themes;
 
-    private void OnEnable()  { if (levelManager != null) levelManager.WallPlaced += OnWallPlaced; }
-    private void OnDisable() { if (levelManager != null) levelManager.WallPlaced -= OnWallPlaced; }
+#if UNITY_EDITOR
+    private bool captureCity;
+
+    public void SetCaptureCity(bool enabled)
+    {
+        if (captureCity == enabled) return;
+        captureCity = enabled;
+        if (themes != null && isActiveAndEnabled)
+            OnThemeChanged(enabled ? ThemeId.City : ThemeCatalog.Selected);
+    }
+#endif
+
+    private void OnEnable()
+    {
+        if (levelManager != null) levelManager.WallPlaced += OnWallPlaced;
+        if (themes == null) return;
+        ThemeCatalog.Changed += OnThemeChanged;
+        OnThemeChanged(ThemeCatalog.Selected);
+    }
+
+    private void OnDisable()
+    {
+        if (levelManager != null) levelManager.WallPlaced -= OnWallPlaced;
+        if (themes == null) return;
+        ThemeCatalog.Changed -= OnThemeChanged;
+        themes.RestoreSkyAndLight();
+    }
+
+    private void OnDestroy() => themes?.ReleaseMeshes();
 
     private void Awake()
     {
+        if (forestChunkPrefab != null)
+            themes = new WorldThemePresentation(chunkPrefab, forestChunkPrefab, chunkLength, corridorWidth);
+
         for (int i = 0; i < chunksBehind + chunksAhead; ++i)
         {
-            chunks.Add(new Chunk { transform = Instantiate(chunkPrefab, transform).transform });
+            Transform root;
+            if (themes == null)
+            {
+                root = Instantiate(chunkPrefab, transform).transform;
+            }
+            else
+            {
+                root = new GameObject("Tronçon de piste").transform;
+                root.SetParent(transform, false);
+            }
+            chunks.Add(new Chunk { transform = root });
         }
         ResetTrack();
+    }
+
+    private void OnThemeChanged(ThemeId id)
+    {
+#if UNITY_EDITOR
+        if (captureCity) id = ThemeId.City;
+#endif
+        bool changed = themes.Selected != id;
+        themes.Apply(id);
+        foreach (Chunk chunk in chunks)
+        {
+            if (!changed && chunk.visual != null) continue;
+            if (chunk.visual != null)
+            {
+                chunk.visual.SetActive(false);
+                Destroy(chunk.visual);
+            }
+            chunk.visual = themes.CreateVisual(chunk.transform);
+            themes.UpdateDistrict(chunk.visual, chunk.start);
+        }
     }
 
     private void OnWallPlaced(LevelDefinition wall)
@@ -105,6 +168,7 @@ public class WorldStreamer : MonoBehaviour
         ReleaseObjects(chunk);
         chunk.start = start;
         chunk.transform.position = new Vector3(start, 0f, 0f);
+        themes?.UpdateDistrict(chunk.visual, start);
         if (start < 0f)
         {
             return;   // pas d'objets derriere le lanceur

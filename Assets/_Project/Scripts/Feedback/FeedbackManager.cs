@@ -35,6 +35,9 @@ public class FeedbackManager : MonoBehaviour
     private GUIStyle popupStyle;
     private GUIStyle hudStyle;
 
+    internal bool UseLegacyHud { get; set; } = true;
+    internal event System.Action<string, float> PopupShown;
+
     private void OnEnable()
     {
         if (projectile != null)
@@ -109,6 +112,7 @@ public class FeedbackManager : MonoBehaviour
     {
         popupText = text;
         popupStart = Time.unscaledTime;
+        PopupShown?.Invoke(text, popupDuration);
     }
 
     // --- Lacher : la fronde rebondit -------------------------------------------------------
@@ -142,6 +146,7 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnGUI()
     {
+        if (!UseLegacyHud) return;
         DrawHud();
         float age = Time.unscaledTime - popupStart;
         if (age > popupDuration || string.IsNullOrEmpty(popupText))

@@ -38,7 +38,9 @@ public class LauncherController : MonoBehaviour
 
     public bool IsAiming { get; private set; }
     public float Gauge { get; private set; }                    // 0 a 1, pour l'interface de Hugo
-    public bool IsPerfect => Gauge >= 1f - perfectZone;
+    public float PerfectThreshold => 1f - perfectZone;
+    public bool IsPerfect => Gauge >= PerfectThreshold;
+    internal bool UseLegacyGauge { get; set; } = true;
     public float Elevation { get; private set; } = 20f;
     public float Side { get; private set; }
 
@@ -191,7 +193,7 @@ public class LauncherController : MonoBehaviour
     // Affichage de debug en attendant l'interface de Hugo : jauge verticale sur le cote gauche.
     private void OnGUI()
     {
-        if (!IsAiming)
+        if (!UseLegacyGauge || !IsAiming)
         {
             return;
         }
