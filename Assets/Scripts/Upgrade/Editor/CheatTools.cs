@@ -34,6 +34,21 @@ public static class CheatTools
         Save(data, "pieces = 0");
     }
 
+    [MenuItem("CanonPOW/Triche/Theme Ville")]
+    private static void ThemeCity() => SetTheme(0, "Ville");
+
+    [MenuItem("CanonPOW/Triche/Theme Foret")]
+    private static void ThemeForest() => SetTheme(1, "Foret");
+
+    // Equipe un theme (et le marque comme achete). Pendant le Play, le ThemeManager l'applique aussitot.
+    private static void SetTheme(int index, string name)
+    {
+        PlayerPrefs.SetInt($"CanonPOW.Theme.{index}", 1);
+        PlayerPrefs.SetInt(ThemeManager.SelectedKey, index);
+        PlayerPrefs.Save();
+        Debug.Log($"[Triche] theme {name} equipe");
+    }
+
     private static void AddCoins(int amount)
     {
         UpgradeSaveData data = Load();

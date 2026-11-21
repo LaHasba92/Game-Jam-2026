@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0d97c680f2c65418660fdb110d060b, type: 3}
+  m_Name: Theme_Ville
+  m_EditorClassIdentifier: Assembly-CSharp::ThemeDefinition
+  displayName: Ville
+  price: 0
+  wallPrefab: {fileID: 0}
+  skybox: {fileID: 0}
+  ambientColor: {r: 0.55, g: 0.6, b: 0.7, a: 1}
+  sunColor: {r: 1, g: 1, b: 1, a: 1}
+  sunIntensity: 1.1
+  fog: 1
+  fogColor: {r: 0.7, g: 0.8, b: 0.9, a: 1}
+  fogDensity: 0.006

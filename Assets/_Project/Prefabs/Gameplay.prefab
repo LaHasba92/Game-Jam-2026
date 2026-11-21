@@ -352,6 +352,19 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 794262838777398404}
+  duration: 5
+  maxSpinSpeed: 1440
+  startSwapInterval: 0.4
+  endSwapInterval: 0.04
+  glowColor: {r: 1, g: 1, b: 1, a: 1}
+  auraColor: {r: 1, g: 0.92, b: 0.55, a: 1}
+  rayCount: 14
+  rayMaxLength: 7
+  lightMaxIntensity: 25
+  auraHeight: 1.2
+  evolutionSound: {fileID: 8300000, guid: 782741de6c22cb44f8baa98171e60c70, type: 3}
+  soundVolume: 0.9
+  matchSoundLength: 1
 --- !u!1 &2318358940984386820
 GameObject:
   m_ObjectHideFlags: 0
@@ -457,7 +470,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WorldStreamer
   target: {fileID: 9219963014728155602}
   levelManager: {fileID: 113981693328875379}
-  chunkPrefab: {fileID: 100493487649287383, guid: a2c9037997cae744a9d72131d48ced51, type: 3}
+  chunkPrefab: {fileID: 8559073564111058959, guid: e7e459a64f9a3f24fa5dcc87ada51938, type: 3}
   chunkLength: 50
   chunksAhead: 6
   chunksBehind: 1
@@ -542,8 +555,58 @@ Transform:
   - {fileID: 4471032907534055083}
   - {fileID: 5652755989924117034}
   - {fileID: 4834760018491522411}
+  - {fileID: 6546921028693204810}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8545428591467183187
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6546921028693204810}
+  - component: {fileID: 4801250595733497689}
+  m_Layer: 0
+  m_Name: ThemeManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6546921028693204810
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8545428591467183187}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8295380550565229292}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4801250595733497689
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8545428591467183187}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce7027552bdb2114e9a44d644ae81e79, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ThemeManager
+  themes:
+  - {fileID: 11400000, guid: 6eb6dc4b7e825f54c99c9613ab55ccaa, type: 2}
+  - {fileID: 11400000, guid: 7b156aa98c206484498d57c0862e0832, type: 2}
+  wall: {fileID: 544495205806101607}
+  sun: {fileID: 0}
 --- !u!1 &8955977452259929432
 GameObject:
   m_ObjectHideFlags: 0

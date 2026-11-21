@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be0d97c680f2c65418660fdb110d060b, type: 3}
+  m_Name: Theme_Foret
+  m_EditorClassIdentifier: Assembly-CSharp::ThemeDefinition
+  displayName: Foret
+  price: 3000
+  wallPrefab: {fileID: 0}
+  skybox: {fileID: 0}
+  ambientColor: {r: 0.46524566, g: 0.8018868, b: 0.48905748, a: 1}
+  sunColor: {r: 0.8113208, g: 0.635049, b: 0.23921569, a: 1}
+  sunIntensity: 1
+  fog: 1
+  fogColor: {r: 0.6696782, g: 0.8773585, b: 0.5090335, a: 1}
+  fogDensity: 0.012

@@ -12,7 +12,7 @@ public static class SaveResetTool
     private static void ResetSave()
     {
         if (!EditorUtility.DisplayDialog("Reinitialiser la sauvegarde",
-                "Remettre a zero les ameliorations, les pieces, les lanceurs et le meilleur score ?",
+                "Remettre a zero les ameliorations, les pieces, les lanceurs (retour a la fronde) et le meilleur score ?",
                 "Reinitialiser", "Annuler"))
         {
             return;
@@ -23,9 +23,11 @@ public static class SaveResetTool
         {
             File.Delete(path);
         }
-        PlayerPrefs.DeleteKey("ScoreSauvegarde");   // le meilleur score de score_manager
+        // Toutes les PlayerPrefs du projet : meilleur score, lanceur achete et equipe (on repart a la fronde),
+        // niveaux et pieces du systeme de Benji (RunUpgrades / RunProgress), bonus gratuit...
+        PlayerPrefs.DeleteAll();
         PlayerPrefs.Save();
-        Debug.Log($"Sauvegarde reinitialisee ({path} supprime, meilleur score efface).");
+        Debug.Log($"Sauvegarde reinitialisee ({path} supprime, PlayerPrefs effacees : retour a la fronde).");
     }
 
     [MenuItem("CanonPOW/Ouvrir le dossier de sauvegarde")]

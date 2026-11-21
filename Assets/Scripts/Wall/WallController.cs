@@ -16,6 +16,7 @@ public class WallController : MonoBehaviour, IWall
     public float Elan { get; set; } = 0.6f;
 
     // Temporaire : sera remplace par GameEvents.OnWallHit quand Benji l'aura pousse.
+    public GameObject ThemeWallPrefab { get; set; }
     public event System.Action<WallHitResult> HitResolved;
 
     public float Distance => current.wallDistance;
@@ -41,8 +42,9 @@ public class WallController : MonoBehaviour, IWall
         }
 
         current = wall;
-        currentSet = GetFreeSet(wall.wallPrefab != null ? wall.wallPrefab : defaultWallPrefab);
-        currentSet.gameObject.SetActive(true);
+        GameObject prefab = ThemeWallPrefab != null ? ThemeWallPrefab
+                          : wall.wallPrefab != null ? wall.wallPrefab : defaultWallPrefab;
+        currentSet = GetFreeSet(prefab);        currentSet.gameObject.SetActive(true);
         currentSet.transform.position = new Vector3(Distance, 0f, 0f);
         currentSet.ResetWall();
         if (missMarker != null)
