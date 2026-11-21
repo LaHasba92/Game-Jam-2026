@@ -75,8 +75,8 @@ Shader "CanonPOW/Landscape"
                 }
                 else if (input.color.a > 0.12)
                 {
-                    float texture = sin(p.x * 2.68 + sin(p.y * 1.8)) * sin(p.y * 4.1 + p.x * 0.39);
-                    illumination *= 1 + texture * 0.035;
+                    float groundVariation = sin(p.x * 2.68 + sin(p.y * 1.8)) * sin(p.y * 4.1 + p.x * 0.39);
+                    illumination *= 1 + groundVariation * 0.035;
                     if (_Landscape < 0.5)
                     {
                         float canopy = sin(p.x * 0.67 + sin(p.y * 0.62)) * sin(p.y * 0.78 + p.x * 0.19);
