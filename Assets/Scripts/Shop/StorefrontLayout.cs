@@ -52,9 +52,9 @@ internal sealed class StorefrontLayout
             new Vector2(0f, -16f));
         back = ButtonLabel(closeButton, "‹ Retour", 32);
         title = MakeText(sheet, "Boutique", 62, TextAlignmentOptions.Center, true);
-        StretchTop(title.rectTransform, 120f, 216f, 222f, 8f);
+        StretchTop(title.rectTransform, 120f, 216f, 338f, 8f);
         walletCard = Box(sheet, "Solde d’or", Color.white);
-        Place(walletCard.rectTransform, Vector2.one, Vector2.one, new Vector2(218f, 90f), new Vector2(0f, -24f));
+        Place(walletCard.rectTransform, Vector2.one, Vector2.one, new Vector2(218f, 90f), new Vector2(-116f, -24f));
         wallet = ButtonLabel(walletCard, "—", 36);
 
         RectTransform tabBar = GameUiLayout.Frame("Onglets", sheet);

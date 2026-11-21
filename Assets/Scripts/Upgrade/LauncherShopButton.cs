@@ -55,7 +55,8 @@ public class LauncherShopButton : MonoBehaviour
         UpgradeSaveData data = Load();
         if (!CanSelect(data)) return false;
 
-        if (!LauncherInventory.IsOwned(launcherIndex, data))
+        bool purchasing = !LauncherInventory.IsOwned(launcherIndex, data);
+        if (purchasing)
         {
             data.coins -= definition.price;
             data.purchasedLauncherMask |= 1 << launcherIndex;
@@ -63,6 +64,8 @@ public class LauncherShopButton : MonoBehaviour
         }
         PlayerPrefs.SetInt(LauncherVisuals.SelectedKey, launcherIndex);   // acheter = equiper
         PlayerPrefs.Save();
+        if (purchasing && launcherIndex == LauncherInventory.CannonIndex)
+            ProjectileTrails.PlayFireUnlock();
         GameEvents.RaiseCoinsChanged(data.coins);
         return true;
     }

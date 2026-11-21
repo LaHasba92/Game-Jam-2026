@@ -43,6 +43,7 @@ public class FeedbackManager : MonoBehaviour
         if (projectile != null)
         {
             projectile.GroundTouched += ResetCombo;
+            projectile.BoostRingCollected += OnBoostRingCollected;
         }
         GameEvents.OnWallBroken += OnWallBroken;
         GameEvents.OnShotFired += OnShotFired;
@@ -54,6 +55,7 @@ public class FeedbackManager : MonoBehaviour
         if (projectile != null)
         {
             projectile.GroundTouched -= ResetCombo;
+            projectile.BoostRingCollected -= OnBoostRingCollected;
         }
         GameEvents.OnWallBroken -= OnWallBroken;
         GameEvents.OnShotFired -= OnShotFired;
@@ -106,6 +108,11 @@ public class FeedbackManager : MonoBehaviour
     private void OnRunEnded(RunResult result)
     {
         ShowPopup(result.wallsBroken == 0 ? "Presque !" : $"{result.wallsBroken} MURS !");
+    }
+
+    private void OnBoostRingCollected(float multiplier)
+    {
+        ShowPopup($"VITESSE ×{multiplier.ToString("0.##", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}");
     }
 
     private void ShowPopup(string text)

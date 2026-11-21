@@ -30,6 +30,7 @@ internal sealed class GameplayHud : MonoBehaviour
     private Image gaugeFill;
     private Image targetZone;
     private Image targetMark;
+    private Image gaugeNeedle;
     private TMP_Text aimAngles;
     private TMP_Text aimInstruction;
     private Button skip;
@@ -89,7 +90,7 @@ internal sealed class GameplayHud : MonoBehaviour
         flight = GameUiLayout.Frame("Vol", safeFrame);
         GameUiLayout.Place(flight, 0f, 0f, 1f, 1f);
         flightCard = GameUiLayout.Block("Progression", flight);
-        GameUiLayout.Place(flightCard.rectTransform, 0f, 1f, 1f, 1f, 48f, -210f, 48f, 42f);
+        GameUiLayout.Place(flightCard.rectTransform, 0f, 1f, 1f, 1f, 48f, -210f, 165f, 42f);
 
         flightRule = GameUiLayout.Block("Soulignement", flightCard.rectTransform, false);
         GameUiLayout.Place(flightRule.rectTransform, 0f, 1f, 0f, 1f, 30f, -5f, -109f);
@@ -141,9 +142,11 @@ internal sealed class GameplayHud : MonoBehaviour
         targetZone = GameUiLayout.Block("Zone parfaite", track.rectTransform, false);
         gaugeFill = GameUiLayout.Block("Remplissage", track.rectTransform, false);
         targetMark = GameUiLayout.Block("Repère parfait", track.rectTransform, false);
+        gaugeNeedle = GameUiLayout.Block("Aiguille", track.rectTransform);
         float threshold = launcher != null ? launcher.PerfectThreshold : 0.88f;
         GameUiLayout.Place(targetZone.rectTransform, threshold, 0f, 1f, 1f);
-        GameUiLayout.Place(targetMark.rectTransform, threshold, 0f, threshold, 1f, 0f, -4f, -4f, -4f);
+        GameUiLayout.Place(gaugeFill.rectTransform, 0f, 0f, 0f, 1f);
+        GameUiLayout.Place(targetMark.rectTransform, threshold, 0f, threshold, 1f, -2f, -4f, -2f, -4f);
 
         aimAngles = GameUiLayout.Text("Angles", aimCard.rectTransform, "", 30f);
         aimInstruction = GameUiLayout.Text("Commande", aimCard.rectTransform, "Maintiens et glisse pour viser", 30f);
@@ -206,6 +209,8 @@ internal sealed class GameplayHud : MonoBehaviour
         float charge = aiming ? launcher.Gauge : 0f;
         bool perfect = aiming && launcher.IsPerfect;
         gaugeFill.rectTransform.anchorMax = new Vector2(charge, 1f);
+        GameUiLayout.Place(gaugeNeedle.rectTransform, charge, 0f, charge, 1f, -5f, -7f, -5f, -7f);
+        SetActive(gaugeNeedle.gameObject, aiming);
         gaugeFill.color = perfect ? PerfectColor() : palette.Accent;
         aimValue.color = perfect ? PerfectColor() : palette.Text;
         if (perfect)
@@ -237,6 +242,7 @@ internal sealed class GameplayHud : MonoBehaviour
         aimLabel.color = wallsLabel.color = distanceLabel.color = aimAngles.color = aimInstruction.color = palette.Muted;
         targetZone.color = Color.Lerp(palette.Border, PerfectColor(), 0.42f);
         targetMark.color = PerfectColor();
+        gaugeNeedle.color = palette.Text;
         GameUiLayout.TintButton(skip, palette.Surface);
     }
 

@@ -47,7 +47,6 @@ public sealed class Storefront : MonoBehaviour
         GameEvents.OnCoinsChanged -= OnCoinsChanged;
         ThemeCatalog.Changed -= OnThemeChanged;
         PremiumStore.Changed -= Refresh;
-        if (tab == Tab.Trails) ProjectileTrails.StopPreview();
         notice = null;
     }
 
@@ -59,7 +58,6 @@ public sealed class Storefront : MonoBehaviour
     {
         var next = (Tab)index;
         if (next == tab) return;
-        if (tab == Tab.Trails) ProjectileTrails.StopPreview();
         tab = next;
         notice = null;
         resetScroll = true;
@@ -167,21 +165,14 @@ public sealed class Storefront : MonoBehaviour
             return;
         }
 
-        layout.Heading("Traînées", "Équipe un effet pour le prochain tir et écoute son aperçu.");
+        layout.Heading("Traînées", "Équipe un effet pour le prochain tir.");
         foreach (ProjectileTrail trail in ProjectileTrails.Options)
         {
             bool equipped = ProjectileTrails.Equipped == trail;
-            bool canPreview = trail != ProjectileTrail.None;
-            string detail = ProjectileTrails.Description(trail);
-            if (equipped && canPreview) detail += " · Équipée";
-            layout.Row(ProjectileTrails.Name(trail), detail,
-                equipped && canPreview ? "Écouter" : equipped ? "Équipée" : "Équiper", !equipped || canPreview,
-                () =>
-                {
-                    if (!equipped && !ProjectileTrails.TryEquip(trail)) return;
-                    ProjectileTrails.Preview(trail);
-                    Refresh();
-                }, ProjectileTrails.Accent(trail), equipped);
+            layout.Row(ProjectileTrails.Name(trail), ProjectileTrails.Description(trail),
+                equipped ? "Équipée" : "Équiper", !equipped,
+                () => Transact(() => ProjectileTrails.TryEquip(trail), "Traînée équipée."),
+                ProjectileTrails.Accent(trail), equipped);
         }
     }
 

@@ -4,6 +4,8 @@ using UnityEngine;
 // impact sur les murs, fin de partie et bouton « Passer ».
 public class ProjectileController : MonoBehaviour
 {
+    private const float BoostRingSpeedMultiplier = 1.85f;
+
     [SerializeField] private WallController wall;
     [SerializeField] private WorldStreamer world;
     [SerializeField] private LevelManager levelManager;      // pour recommencer au mur 1 a chaque partie
@@ -30,6 +32,7 @@ public class ProjectileController : MonoBehaviour
 
     // Le boulet retombe sur le SOL (pas sur un trampoline ni un booster) : le combo repart a zero.
     public event System.Action GroundTouched;
+    internal event System.Action<float> BoostRingCollected;
 
     public bool IsFlying { get; private set; }
     public int WallsBroken { get; private set; }
@@ -154,7 +157,6 @@ public class ProjectileController : MonoBehaviour
 
     private void StartTrail()
     {
-        ProjectileTrails.StopPreview();
         ProjectileTrail style = ProjectileTrails.Equipped;
         if (style == ProjectileTrail.None) return;
         transform.position = position;
@@ -167,7 +169,7 @@ public class ProjectileController : MonoBehaviour
 #if UNITY_EDITOR
         if (captureFlight) return;
 #endif
-        if (!IsFlying)
+        if (!IsFlying || UIStateSwitcher.IsModalOpen)
         {
             return;
         }
@@ -184,7 +186,7 @@ public class ProjectileController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (IsFlying)
+        if (IsFlying && !UIStateSwitcher.IsModalOpen)
         {
             Simulate(Time.fixedDeltaTime, true);
             transform.position = position;
@@ -211,6 +213,7 @@ public class ProjectileController : MonoBehaviour
         }
 
         bool wasInAir = position.y > physics.radius + 0.01f;
+        Vector3 previousPosition = position;
         bool touchedGround = BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
         bool useGroundObjects = true;
 #if UNITY_EDITOR
@@ -220,7 +223,7 @@ public class ProjectileController : MonoBehaviour
         {
             if (touchedGround && wasInAir && !IsOnBouncyObject())
                 GroundTouched?.Invoke();
-            HandleGroundObjects();
+            HandleGroundObjects(previousPosition);
         }
         HandleWall();
 
@@ -253,9 +256,9 @@ public class ProjectileController : MonoBehaviour
             && (obj.type == GroundObjectType.Trampoline || obj.type == GroundObjectType.Booster);
     }
 
-    private void HandleGroundObjects()
+    private void HandleGroundObjects(Vector3 previousPosition)
     {
-        if (world == null || !world.TryGetObjectAt(position, physics.radius, out GroundObject obj) || obj == lastObject)
+        if (world == null || !world.TryGetObjectAt(previousPosition, position, physics.radius, out GroundObject obj) || obj == lastObject)
         {
             return;
         }
@@ -273,10 +276,10 @@ public class ProjectileController : MonoBehaviour
                 velocity.x *= 1.25f;
                 velocity.z *= 1.25f;
                 break;
-            case GroundObjectType.Balloon:      // remonte de 15 m
-                velocity.y = Mathf.Sqrt(2f * physics.gravity * 15f);
-                rolling = false;
+            case GroundObjectType.BoostRing:
+                velocity *= BoostRingSpeedMultiplier;
                 world.Consume(obj);
+                BoostRingCollected?.Invoke(BoostRingSpeedMultiplier);
                 break;
             case GroundObjectType.Sticky:       // vitesse divisee par 2
                 velocity *= 0.5f;

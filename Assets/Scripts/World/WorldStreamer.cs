@@ -34,7 +34,7 @@ public class WorldStreamer : MonoBehaviour
     {
         new SpawnRule { type = GroundObjectType.Trampoline, minGap = 30, maxGap = 60 },
         new SpawnRule { type = GroundObjectType.Booster, minGap = 60, maxGap = 120, fromDistance = 100 },
-        new SpawnRule { type = GroundObjectType.Balloon, minGap = 150, maxGap = 300, fromDistance = 190, minHeight = 2, maxHeight = 6 },
+        new SpawnRule { type = GroundObjectType.BoostRing, minGap = 150, maxGap = 300, fromDistance = 190, minHeight = 2, maxHeight = 6 },
         new SpawnRule { type = GroundObjectType.Sticky, minGap = 150, maxGap = 300, fromDistance = 530 },
     };
 
@@ -80,7 +80,7 @@ public class WorldStreamer : MonoBehaviour
         themes.RestoreSkyAndLight();
     }
 
-    private void OnDestroy() => themes?.ReleaseMeshes();
+    private void OnDestroy() => themes?.Release();
 
     private void Awake()
     {
@@ -120,7 +120,7 @@ public class WorldStreamer : MonoBehaviour
                 Destroy(chunk.visual);
             }
             chunk.visual = themes.CreateVisual(chunk.transform);
-            themes.UpdateDistrict(chunk.visual, chunk.start);
+            themes.UpdateVisual(chunk.visual, chunk.start);
         }
     }
 
@@ -168,7 +168,7 @@ public class WorldStreamer : MonoBehaviour
         ReleaseObjects(chunk);
         chunk.start = start;
         chunk.transform.position = new Vector3(start, 0f, 0f);
-        themes?.UpdateDistrict(chunk.visual, start);
+        themes?.UpdateVisual(chunk.visual, start);
         if (start < 0f)
         {
             return;   // pas d'objets derriere le lanceur
@@ -240,13 +240,18 @@ public class WorldStreamer : MonoBehaviour
     // --- Pour Andy : trouver les objets que le boulet touche ---------------------------------
 
     // Renvoie l'objet actif le plus proche de « position » s'il est a portee (radius de l'objet + ballRadius).
-    public bool TryGetObjectAt(Vector3 position, float ballRadius, out GroundObject found)
+    public bool TryGetObjectAt(Vector3 position, float ballRadius, out GroundObject found) =>
+        TryGetObjectAt(position, position, ballRadius, out found);
+
+    public bool TryGetObjectAt(Vector3 previous, Vector3 position, float ballRadius, out GroundObject found)
     {
         found = null;
         float best = float.MaxValue;
+        float from = Mathf.Min(previous.x, position.x);
+        float to = Mathf.Max(previous.x, position.x);
         foreach (Chunk chunk in chunks)
         {
-            if (position.x < chunk.start - 5f || position.x > chunk.start + chunkLength + 5f)
+            if (to < chunk.start - 5f || from > chunk.start + chunkLength + 5f)
             {
                 continue;
             }
@@ -257,7 +262,17 @@ public class WorldStreamer : MonoBehaviour
                     continue;
                 }
                 float d;
-                if (obj.fullWidth)
+                if (obj.type == GroundObjectType.BoostRing)
+                {
+                    // Vérifie le passage dans le plan YZ même si un pas traverse l'anneau entier.
+                    Vector3 center = obj.transform.position;
+                    if (center.x < from - ballRadius || center.x > to + ballRadius) continue;
+                    float fraction = Mathf.InverseLerp(previous.x, position.x, center.x);
+                    Vector3 offset = Vector3.Lerp(previous, position, fraction) - center;
+                    d = new Vector2(offset.y, offset.z).magnitude;
+                    if (d > obj.radius + ballRadius) continue;
+                }
+                else if (obj.fullWidth)
                 {
                     // Pleine largeur : il suffit d'etre au-dessus, pres du sol, sur sa longueur
                     float dx = Mathf.Abs(position.x - obj.transform.position.x);
@@ -279,7 +294,7 @@ public class WorldStreamer : MonoBehaviour
         return found != null;
     }
 
-    // Une piece ramassee (ou un ballon utilise) disparait jusqu'au prochain recyclage.
+    // Une pièce ou un anneau utilisé disparaît jusqu'au prochain recyclage.
     public void Consume(GroundObject obj)
     {
         obj.gameObject.SetActive(false);

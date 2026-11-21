@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-public enum ThemeId { City, Forest, Cyberpunk }
+public enum ThemeId { City, Forest, Cyberpunk, Beach, Moon }
 
 public readonly struct ThemePalette
 {
@@ -60,10 +60,14 @@ public static class ThemeCatalog
     {
         new ThemeOption(ThemeId.City, "Ville", "Avenue en plein jour", 0,
             new ThemePalette(0x111b29, 0x1c2b3d, 0xf7f4ea, 0xb6c1cf, 0xffc255, 0x72e4ad, 0x485c72, 0xff8580)),
-        new ThemeOption(ThemeId.Forest, "Forêt", "Une piste au milieu des pins", 3000,
+        new ThemeOption(ThemeId.Forest, "Forêt", "Une piste sous les pins, entre brume et lumière dorée", 3000,
             new ThemePalette(0x10231f, 0x1b332b, 0xf1f8e9, 0xb7cbbd, 0xc0eb79, 0x72e2c4, 0x498267, 0xff9385)),
         new ThemeOption(ThemeId.Cyberpunk, "District Néon", "Une avenue nocturne aux néons cyan et magenta", 5000,
             new ThemePalette(0x111021, 0x1d1933, 0xf4f2ff, 0xbab2d8, 0x55edff, 0xff7fd5, 0x6956a7, 0xff8caa)),
+        new ThemeOption(ThemeId.Beach, "Plage", "Une côte dorée entre palmiers et lagon turquoise", 3500,
+            new ThemePalette(0x173130, 0x224546, 0xfffae7, 0xc3d2c5, 0xffcb83, 0x81ddce, 0x548b87, 0xff9d88)),
+        new ThemeOption(ThemeId.Moon, "Lune", "Des cratères sous un ciel étoilé et la Terre à l’horizon", 4500,
+            new ThemePalette(0x151c2c, 0x222d42, 0xf0f5ff, 0xb9c6da, 0x9be4f5, 0xc6baff, 0x596b89, 0xffa6ac)),
     });
 
     public static ThemeId Selected => TryLoad(out UpgradeSaveData data) ? ReadSelection(data) : ThemeId.City;

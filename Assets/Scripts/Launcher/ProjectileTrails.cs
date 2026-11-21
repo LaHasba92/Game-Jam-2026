@@ -14,7 +14,8 @@ public enum ProjectileTrail
 public static class ProjectileTrails
 {
     private const string EquippedKey = "CanonPOW.ProjectileTrail";
-    private static AudioSource previewSource;
+    private const string AudioPath = "ProjectileTrails/";
+    private static AudioSource unlockAudio;
 
     public static IReadOnlyList<ProjectileTrail> Options { get; } =
         Array.AsReadOnly(new[] { ProjectileTrail.None, ProjectileTrail.Fire, ProjectileTrail.Bubbles,
@@ -55,8 +56,8 @@ public static class ProjectileTrails
     {
         ProjectileTrail.Fire => "Flamme ambrée et crépitements",
         ProjectileTrail.Bubbles => "Bulles irisées et petits claquements",
-        ProjectileTrail.Water => "Ruban d’eau et gouttes en cascade",
-        ProjectileTrail.Aura => "Étincelles violettes et résonance douce",
+        ProjectileTrail.Water => "Ruban d’eau et bulles douces",
+        ProjectileTrail.Aura => "Étincelles violettes et tintements cristallins",
         _ => "Boulet d’origine"
     };
 
@@ -69,32 +70,28 @@ public static class ProjectileTrails
         _ => new Color32(181, 195, 217, 255)
     };
 
-    public static void Preview(ProjectileTrail trail)
+    internal static void PlayFireUnlock()
     {
-        if (!Application.isPlaying || !IsUnlocked || !IsValid(trail)) return;
-        StopPreview();
-        AudioClip clip = LoadAudio(trail);
+        if (!Application.isPlaying) return;
+        AudioClip clip = Resources.Load<AudioClip>(AudioPath + "FireUnlock");
         if (clip == null) return;
 
-        if (previewSource == null)
+        if (unlockAudio == null)
         {
-            previewSource = new GameObject("CanonPOW — Écoute de traînée").AddComponent<AudioSource>();
-            previewSource.playOnAwake = false;
-            previewSource.spatialBlend = 0f;
-            previewSource.volume = 0.63f;
+            unlockAudio = new GameObject("CanonPOW — Déblocage de traînée").AddComponent<AudioSource>();
+            unlockAudio.playOnAwake = false;
+            unlockAudio.spatialBlend = 0f;
         }
-        previewSource.clip = clip;
-        previewSource.Play();
+        unlockAudio.PlayOneShot(clip, 0.7f);
     }
 
-    public static void StopPreview()
+    internal static AudioClip LoadAudio(ProjectileTrail trail) => trail switch
     {
-        if (previewSource != null) previewSource.Stop();
-    }
-
-    internal static AudioClip LoadAudio(ProjectileTrail trail) => trail == ProjectileTrail.None
-        ? null
-        : Resources.Load<AudioClip>("ProjectileTrails/" + trail);
+        ProjectileTrail.Fire => Resources.Load<AudioClip>(AudioPath + "Fire"),
+        ProjectileTrail.Bubbles or ProjectileTrail.Water => Resources.Load<AudioClip>(AudioPath + "Water"),
+        ProjectileTrail.Aura => Resources.Load<AudioClip>(AudioPath + "Aura"),
+        _ => null
+    };
 
     private static bool IsValid(ProjectileTrail trail) => trail >= ProjectileTrail.None && trail <= ProjectileTrail.Aura;
 }

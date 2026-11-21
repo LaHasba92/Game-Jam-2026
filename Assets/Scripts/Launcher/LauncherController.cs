@@ -65,8 +65,9 @@ public class LauncherController : MonoBehaviour
 
     private void Update()
     {
-        if (projectile.IsFlying)
+        if (projectile.IsFlying || UIStateSwitcher.IsModalOpen)
         {
+            IsAiming = false;
             SetPreviewVisible(false);
             return;
         }

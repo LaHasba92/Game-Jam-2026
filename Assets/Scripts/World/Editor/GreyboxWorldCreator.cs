@@ -25,8 +25,8 @@ public static class GreyboxWorldCreator
             new Vector3(0.6f, 0.05f, 0.6f), Color.yellow, 0.5f, Quaternion.Euler(0f, 0f, 90f)); // face vers le lanceur (axe X)
         MakeObject(GroundObjectType.Booster, PrimitiveType.Cube, new Vector3(0f, 0.05f, 0f),
             new Vector3(2f, 0.1f, 1.5f), new Color(1f, 0.5f, 0f), 1f);
-        MakeObject(GroundObjectType.Balloon, PrimitiveType.Sphere, Vector3.zero,
-            Vector3.one * 1.2f, Color.red, 0.8f);
+        MakeObject(GroundObjectType.BoostRing, PrimitiveType.Sphere, Vector3.zero,
+            Vector3.one, Color.red, 0.8f);
         MakeObject(GroundObjectType.Sticky, PrimitiveType.Cylinder, new Vector3(0f, 0.03f, 0f),
             new Vector3(3f, 0.03f, 3f), new Color(0.2f, 0.35f, 0.1f), 1.5f);
 
@@ -51,6 +51,11 @@ public static class GreyboxWorldCreator
         GameObject visual = Primitive(shape, "Visual", root.transform, offset, scale, color);
         visual.transform.localRotation = rotation ?? Quaternion.identity;
         Object.DestroyImmediate(visual.GetComponent<Collider>()); // detection par calcul, pas par la physique
+        if (type == GroundObjectType.BoostRing)
+        {
+            visual.GetComponent<MeshFilter>().sharedMesh = null;
+            visual.AddComponent<BoostRingVisual>();
+        }
         Save(root, type.ToString());
     }
 

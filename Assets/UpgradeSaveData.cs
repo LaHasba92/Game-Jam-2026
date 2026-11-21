@@ -17,5 +17,7 @@ public class UpgradeSaveData
     public int selectedTheme;
     public bool hasMigratedThemes;
     public int premiumDoubleRewards;
+    public long goldBoostNextClaimAt;
+    public bool goldBoostQueued;
     public List<string> fulfilledPurchases;
 }

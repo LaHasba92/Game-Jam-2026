@@ -1,11 +1,14 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 // Le thème remplace le décor du tronçon, indépendamment de ses objets et de leur recyclage.
 internal sealed class WorldThemePresentation
 {
-    private const int DistrictVariants = 3;
-    private readonly Mesh[] districtMeshes = new Mesh[DistrictVariants];
+    private const int Variants = 3;
+    private static readonly int LandscapeProperty = Shader.PropertyToID("_Landscape");
+
+    private readonly Dictionary<(ThemeId theme, int variant), Mesh> meshes = new Dictionary<(ThemeId, int), Mesh>();
     private readonly float chunkLength;
     private readonly float corridorWidth;
     private readonly GameObject cityPrefab;
@@ -23,8 +26,12 @@ internal sealed class WorldThemePresentation
     private readonly Color originalFogColor;
     private readonly float originalFogStart;
     private readonly float originalFogEnd;
+
     private Material neonMaterial;
     private Material neonSky;
+    private Material landscapeMaterial;
+    private Material landscapeSky;
+    private Material currentMaterial;
 
     public ThemeId Selected { get; private set; }
 
@@ -67,63 +74,102 @@ internal sealed class WorldThemePresentation
     {
         Selected = id;
         RestoreSkyAndLight();
-        if (id == ThemeId.City) return;
+        currentMaterial = null;
 
+        switch (id)
+        {
+            case ThemeId.Forest:
+                SetLandscape(0f);
+                SetLighting(0x9bb0a3, 31f, 158f, 0xffe6b8, 1.08f, 0xced9bb, 0x9cb29a, 0x757965);
+                break;
+            case ThemeId.Beach:
+                SetLandscape(1f);
+                SetLighting(0xa7d4de, 56f, 198f, 0xfff0d8, 1.1f, 0xd1edf2, 0xb8d6d3, 0xc9b79c);
+                break;
+            case ThemeId.Moon:
+                SetLandscape(2f);
+                SetLighting(0x2b3953, 41f, 169f, 0xd2e5ff, 0.97f, 0x798eaf, 0x5e6c84, 0x3e475a);
+                break;
+            case ThemeId.Cyberpunk:
+                if (neonMaterial == null) neonMaterial = Resources.Load<Material>("WorldThemes/DistrictNeon");
+                if (neonSky == null) neonSky = Resources.Load<Material>("WorldThemes/DistrictNeonSky");
+                currentMaterial = neonMaterial;
+                if (neonSky != null) RenderSettings.skybox = neonSky;
+                SetLighting(0x392a5c, 42f, 165f, 0xb3caff, 0.67f, 0x7165a0, 0x464581, 0x2a2148);
+                break;
+        }
+    }
+
+    private void SetLandscape(float landscape)
+    {
+        if (landscapeMaterial == null) landscapeMaterial = CreateMaterial("WorldThemes/Landscape");
+        if (landscapeSky == null) landscapeSky = CreateMaterial("WorldThemes/LandscapeSky");
+        currentMaterial = landscapeMaterial;
+        if (landscapeMaterial != null) landscapeMaterial.SetFloat(LandscapeProperty, landscape);
+        if (landscapeSky != null)
+        {
+            landscapeSky.SetFloat(LandscapeProperty, landscape);
+            RenderSettings.skybox = landscapeSky;
+        }
+    }
+
+    private static Material CreateMaterial(string path)
+    {
+        Material source = Resources.Load<Material>(path);
+        return source == null ? null : new Material(source);
+    }
+
+    private void SetLighting(int fog, float near, float far, int light, float intensity, int sky, int equator, int ground)
+    {
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Linear;
-        if (id == ThemeId.Forest)
-        {
-            RenderSettings.fogColor = ThemePalette.Rgb(0x9baa9a);
-            RenderSettings.fogStartDistance = 58f;
-            RenderSettings.fogEndDistance = 180f;
-            if (sun != null) sun.color = ThemePalette.Rgb(0xffe6b8);
-            return;
-        }
-
-        if (neonSky == null) neonSky = Resources.Load<Material>("WorldThemes/DistrictNeonSky");
-        if (neonSky != null) RenderSettings.skybox = neonSky;
-        RenderSettings.fogColor = ThemePalette.Rgb(0x392a5c);
-        RenderSettings.fogStartDistance = 42f;
-        RenderSettings.fogEndDistance = 165f;
+        RenderSettings.fogColor = ThemePalette.Rgb(fog);
+        RenderSettings.fogStartDistance = near;
+        RenderSettings.fogEndDistance = far;
         RenderSettings.ambientMode = AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = ThemePalette.Rgb(0x7165a0);
-        RenderSettings.ambientEquatorColor = ThemePalette.Rgb(0x464581);
-        RenderSettings.ambientGroundColor = ThemePalette.Rgb(0x2a2148);
+        RenderSettings.ambientSkyColor = ThemePalette.Rgb(sky);
+        RenderSettings.ambientEquatorColor = ThemePalette.Rgb(equator);
+        RenderSettings.ambientGroundColor = ThemePalette.Rgb(ground);
         if (sun != null)
         {
-            sun.color = ThemePalette.Rgb(0xb3caff);
-            sun.intensity = Mathf.Max(0.55f, originalSunIntensity * 0.67f);
+            sun.color = ThemePalette.Rgb(light);
+            sun.intensity = Mathf.Max(0.55f, originalSunIntensity * intensity);
         }
     }
 
     public GameObject CreateVisual(Transform parent)
     {
-        if (Selected != ThemeId.Cyberpunk)
-            return Object.Instantiate(Selected == ThemeId.Forest ? forestPrefab : cityPrefab, parent);
-
-        if (neonMaterial == null) neonMaterial = Resources.Load<Material>("WorldThemes/DistrictNeon");
-        if (neonMaterial == null)
-        {
-            Debug.LogWarning("Thèmes : matériau du District Néon introuvable.");
+        if (Selected == ThemeId.City)
             return Object.Instantiate(cityPrefab, parent);
+
+        if (currentMaterial == null)
+        {
+            Debug.LogWarning($"Thèmes : matériau de {Selected} introuvable.");
+            return Object.Instantiate(Selected == ThemeId.Forest ? forestPrefab : cityPrefab, parent);
         }
 
-        var district = new GameObject("District Néon", typeof(MeshFilter), typeof(MeshRenderer));
-        district.transform.SetParent(parent, false);
-        var renderer = district.GetComponent<MeshRenderer>();
-        renderer.sharedMaterial = neonMaterial;
+        var visual = new GameObject(Selected.ToString(), typeof(MeshFilter), typeof(MeshRenderer));
+        visual.transform.SetParent(parent, false);
+        var renderer = visual.GetComponent<MeshRenderer>();
+        renderer.sharedMaterial = currentMaterial;
         renderer.shadowCastingMode = ShadowCastingMode.Off;
-        return district;
+        return visual;
     }
 
-    public void UpdateDistrict(GameObject visual, float start)
+    public void UpdateVisual(GameObject visual, float start)
     {
-        if (Selected != ThemeId.Cyberpunk || visual == null || neonMaterial == null) return;
+        if (currentMaterial == null || visual == null) return;
         int ordinal = Mathf.RoundToInt(start / chunkLength);
-        int index = ((ordinal % DistrictVariants) + DistrictVariants) % DistrictVariants;
-        if (districtMeshes[index] == null)
-            districtMeshes[index] = NeonDistrictMesh.Create(chunkLength, corridorWidth, index);
-        visual.GetComponent<MeshFilter>().sharedMesh = districtMeshes[index];
+        int variant = ((ordinal % Variants) + Variants) % Variants;
+        var key = (Selected, variant);
+        if (!meshes.TryGetValue(key, out Mesh mesh))
+        {
+            mesh = Selected == ThemeId.Cyberpunk
+                ? NeonDistrictMesh.Create(chunkLength, corridorWidth, variant)
+                : LandscapeChunkMesh.Create(Selected, chunkLength, corridorWidth, variant);
+            meshes.Add(key, mesh);
+        }
+        visual.GetComponent<MeshFilter>().sharedMesh = mesh;
     }
 
     public void RestoreSkyAndLight()
@@ -145,9 +191,11 @@ internal sealed class WorldThemePresentation
         }
     }
 
-    public void ReleaseMeshes()
+    public void Release()
     {
-        foreach (Mesh mesh in districtMeshes)
-            if (mesh != null) Object.Destroy(mesh);
+        foreach (Mesh mesh in meshes.Values)
+            Object.Destroy(mesh);
+        if (landscapeMaterial != null) Object.Destroy(landscapeMaterial);
+        if (landscapeSky != null) Object.Destroy(landscapeSky);
     }
 }
