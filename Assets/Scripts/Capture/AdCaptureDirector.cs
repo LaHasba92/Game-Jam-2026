@@ -7,16 +7,48 @@ using UnityEngine;
 [DefaultExecutionOrder(200)]
 public sealed class AdCaptureDirector : MonoBehaviour
 {
-    public enum Take { Intro, Miss, Shop, Canon, EndCard }
+    public enum Take { Intro, Miss, Shop, Canon, EndCard, LunarEstablishing }
+    public enum Trailer { Full, Fronde, Steel, Moon }
 
     public const int SequenceSeconds = 30;
     public const float SlowPreviewSpeed = 0.5f;
     private const float TransitionHalfDuration = 0.18f;
-    private const float CanonLeadIn = 6.25f;
+    private const float FullCanonLeadIn = 6.25f;
     private const float CanonEvolutionStart = 0.3f;
     private const float CanonEvolutionDuration = 5f;
     private const float OpeningFlightEnd = 2.9f;
-    private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
+
+    private sealed class TrailerEdit
+    {
+        public readonly int Duration;
+        public readonly string FileLabel;
+        public readonly ThemeId Theme;
+        public readonly float MissLeadIn;
+        public readonly float CanonLeadIn;
+        public readonly bool PlayEvolution;
+        public readonly (float Start, Take Plan)[] Cuts;
+
+        public TrailerEdit(int duration, string fileLabel, ThemeId theme, float missLeadIn, float canonLeadIn,
+            bool playEvolution, params (float Start, Take Plan)[] cuts)
+        {
+            Duration = duration;
+            FileLabel = fileLabel;
+            Theme = theme;
+            MissLeadIn = missLeadIn;
+            CanonLeadIn = canonLeadIn;
+            PlayEvolution = playEvolution;
+            Cuts = cuts;
+        }
+    }
+
+    private static readonly TrailerEdit FullEdit = new TrailerEdit(SequenceSeconds, null, ThemeId.City, 2f, FullCanonLeadIn, true,
+        (0f, Take.Intro), (3f, Take.Miss), (10f, Take.Shop), (15f, Take.Canon), (28f, Take.EndCard));
+    private static readonly TrailerEdit FrondeEdit = new TrailerEdit(22, "De-la-fronde-au-canon", ThemeId.City, 0.45f, FullCanonLeadIn, true,
+        (0f, Take.Miss), (5f, Take.Shop), (9f, Take.Canon), (20f, Take.EndCard));
+    private static readonly TrailerEdit SteelEdit = new TrailerEdit(15, "A-quelques-PV", ThemeId.City, 2f, 2.8f, false,
+        (0f, Take.Intro), (3f, Take.Canon), (13f, Take.EndCard));
+    private static readonly TrailerEdit MoonEdit = new TrailerEdit(15, "Defi-lunaire", ThemeId.Moon, 2f, 1.7f, false,
+        (0f, Take.LunarEstablishing), (4.1f, Take.Canon), (13f, Take.EndCard));
 
     private static AdCaptureDirector current;
     public static bool IsPlayingTake => current != null && current.hasTake;
@@ -59,21 +91,42 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private bool hasFired;
     private bool hasTake;
     private Take take;
+    private Trailer trailer;
+    private TrailerEdit edit = FullEdit;
 
     public static void PlayTake(Take next)
     {
+        if (CaptureBusy()) return;
         AdCaptureDirector director = GetOrCreate();
         if (director != null) director.ChooseTake(next);
     }
 
-    public static void PlaySequence(bool record, float speed = 1f)
+    public static void PlaySequence(bool record, float speed = 1f) => PlayTrailer(Trailer.Full, record, speed);
+
+    public static void PlayTrailer(Trailer variant, bool record, float speed = 1f)
     {
+        if (CaptureBusy()) return;
         AdCaptureDirector director = GetOrCreate();
         if (director == null) return;
+
+        TrailerEdit selection = variant switch
+        {
+            Trailer.Fronde => FrondeEdit,
+            Trailer.Steel => SteelEdit,
+            Trailer.Moon => MoonEdit,
+            _ => FullEdit
+        };
         if (record)
-            AdCaptureRecorder.Begin(SequenceSeconds, () => director.StartSequence(1f));
+            AdCaptureRecorder.Begin(selection.Duration, () => director.StartSequence(variant, selection, 1f), selection.FileLabel);
         else
-            director.StartSequence(speed);
+            director.StartSequence(variant, selection, speed);
+    }
+
+    private static bool CaptureBusy()
+    {
+        if (!AdCaptureRecorder.IsBusy) return false;
+        Debug.LogWarning("Capture pub : termine l’export en cours ou arrête-le avec F12.");
+        return true;
     }
 
     private static AdCaptureDirector GetOrCreate()
@@ -148,13 +201,17 @@ public sealed class AdCaptureDirector : MonoBehaviour
         if (hasTake) Time.timeScale = playbackSpeed;
         clock += frameDelta;
 
-        if (Input.GetKeyDown(KeyCode.F5)) StartSequence(SlowPreviewSpeed);
-        else if (Input.GetKeyDown(KeyCode.F6)) ChooseTake(Take.Intro);
-        else if (Input.GetKeyDown(KeyCode.F7) || Input.GetKeyDown(KeyCode.F8)) ChooseTake(Take.Miss);
-        else if (Input.GetKeyDown(KeyCode.F9)) ChooseTake(Take.Shop);
-        else if (Input.GetKeyDown(KeyCode.F10)) ChooseTake(Take.Canon);
-        else if (Input.GetKeyDown(KeyCode.F11)) ChooseTake(Take.EndCard);
-        else if (Input.GetKeyDown(KeyCode.F12)) AdCaptureRecorder.Toggle();
+        if (Input.GetKeyDown(KeyCode.F12))
+            AdCaptureRecorder.Toggle();
+        else if (!AdCaptureRecorder.IsBusy)
+        {
+            if (Input.GetKeyDown(KeyCode.F5)) StartSequence(Trailer.Full, FullEdit, SlowPreviewSpeed);
+            else if (Input.GetKeyDown(KeyCode.F6)) ChooseTake(Take.Intro);
+            else if (Input.GetKeyDown(KeyCode.F7) || Input.GetKeyDown(KeyCode.F8)) ChooseTake(Take.Miss);
+            else if (Input.GetKeyDown(KeyCode.F9)) ChooseTake(Take.Shop);
+            else if (Input.GetKeyDown(KeyCode.F10)) ChooseTake(Take.Canon);
+            else if (Input.GetKeyDown(KeyCode.F11)) ChooseTake(Take.EndCard);
+        }
 
         if (sequenceStart >= 0f) UpdateSequence();
         else if (manualTransition)
@@ -187,46 +244,51 @@ public sealed class AdCaptureDirector : MonoBehaviour
             UpdateIntro();
         else if (impactTime >= 0f)
             overlay.ShowChallenge(clock - impactTime);
+
+        if (sequenceStart >= 0f && take == edit.Cuts[0].Plan)
+            ShowTrailerHook(clock - takeTime);
     }
 
     private void ChooseTake(Take next)
     {
         sequenceStart = -1f;
+        trailer = Trailer.Full;
+        edit = FullEdit;
         previewSpeed = 1f;
         manualTransition = next != Take.Intro;
         StartTake(next);
         transition.Show(manualTransition ? 0.5f : 0f);
     }
 
-    private void StartSequence(float speed)
+    private void StartSequence(Trailer variant, TrailerEdit selection, float speed)
     {
+        trailer = variant;
+        edit = selection;
         sequenceStart = clock;
         previewSpeed = speed;
         manualTransition = false;
-        StartTake(Take.Intro);
+        StartTake(edit.Cuts[0].Plan);
         transition.Show(0f);
     }
 
     private void UpdateSequence()
     {
         float elapsed = clock - sequenceStart;
-        Take next = elapsed < CutTimes[0] ? Take.Intro
-            : elapsed < CutTimes[1] ? Take.Miss
-            : elapsed < CutTimes[2] ? Take.Shop
-            : elapsed < CutTimes[3] ? Take.Canon
-            : Take.EndCard;
+        Take next = edit.Cuts[0].Plan;
+        for (int i = 1; i < edit.Cuts.Length && elapsed >= edit.Cuts[i].Start; ++i)
+            next = edit.Cuts[i].Plan;
         if (next != take) StartTake(next);
 
         float wipe = 0f;
-        foreach (float cut in CutTimes)
+        for (int i = 1; i < edit.Cuts.Length; ++i)
         {
-            float offset = elapsed - cut;
+            float offset = elapsed - edit.Cuts[i].Start;
             if (Mathf.Abs(offset) >= TransitionHalfDuration) continue;
             wipe = (offset + TransitionHalfDuration) / (2f * TransitionHalfDuration);
             break;
         }
         transition.Show(wipe);
-        if (elapsed >= SequenceSeconds)
+        if (elapsed >= edit.Duration)
         {
             sequenceStart = -1f;
             previewSpeed = 1f;
@@ -241,7 +303,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         AdCaptureAudio.StopEvolution();
         StopFeedback();
         Time.timeScale = AdCaptureRecorder.IsRecording ? 1f : previewSpeed;
-        if (!hasTake && world != null) world.SetCaptureCity(true);
+        if (world != null) world.SetCaptureTheme(edit.Theme);
         hasTake = true;
         launcher.ClearCaptureAim();
         launcher.enabled = false;
@@ -259,7 +321,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         game.Play(); // remet le projectile, la piste et les murs au départ
         take = next;
         takeTime = clock;
-        models.SetCaptureModel(0);
+        models.SetCaptureModel(next == Take.Canon && !edit.PlayEvolution ? 4 : 0);
         SetSceneUi(false);
         AdCaptureAudio.PlayCue(next == Take.EndCard ? AdCaptureAudio.Cue.End : AdCaptureAudio.Cue.Whoosh);
 
@@ -290,9 +352,9 @@ public sealed class AdCaptureDirector : MonoBehaviour
             yield break;
         }
 
-        if (canon) yield return PlayEvolution();
+        if (canon && edit.PlayEvolution) yield return PlayEvolution();
 
-        float leadIn = canon ? CanonLeadIn : 2f;
+        float leadIn = canon ? edit.CanonLeadIn : edit.MissLeadIn;
         while (clock - takeTime < leadIn) yield return null;
 
         float aimDuration = canon ? 1.04f : 0.56f;
@@ -372,8 +434,24 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private void UpdateIntro()
     {
         float elapsed = clock - takeTime;
-        overlay.ShowHook(elapsed);
+        if (trailer == Trailer.Full) overlay.ShowHook(elapsed);
         if (openingShot && elapsed >= OpeningFlightEnd) projectile.HoldAdTake();
+    }
+
+    private void ShowTrailerHook(float elapsed)
+    {
+        switch (trailer)
+        {
+            case Trailer.Fronde:
+                overlay.ShowTrailerHook("DEUX MURS. C’EST TOUT ?", "Voyons ce que donne le canon.", elapsed, 2.05f);
+                break;
+            case Trailer.Steel:
+                overlay.ShowTrailerHook($"{bossIndex} MURS. UN SEUL TIR.", "Reste le mur d’acier.", elapsed, 2.65f);
+                break;
+            case Trailer.Moon:
+                overlay.ShowTrailerHook("MÊME SUR LA LUNE ?", "Un tir pour atteindre le mur d’acier.", elapsed, 3.3f);
+                break;
+        }
     }
 
     private void OnShotEnded(RunResult result)
@@ -405,7 +483,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
                 return;
             }
 
-            float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, CutTimes[0], elapsed));
+            float t = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, edit.Cuts[1].Start, elapsed));
             Vector3 from = new Vector3(-7f, 3.7f, -1.6f);
             float wallDistance = FitDistance(Mathf.Max(1f, wall.WallWidth) * 0.6f, bossHeight * 0.58f);
             Vector3 to = new Vector3(boss.wallDistance - wallDistance, bossHeight * 0.46f, -0.8f);
@@ -413,6 +491,12 @@ public sealed class AdCaptureDirector : MonoBehaviour
             Vector3 target = Vector3.Lerp(position + new Vector3(23f, -0.8f, 0.4f),
                 new Vector3(boss.wallDistance, bossHeight * 0.5f, 0f), t);
             SetCamera(position, target, 1f);
+            return;
+        }
+
+        if (take == Take.LunarEstablishing)
+        {
+            FrameLunarEstablishing(clock - takeTime);
             return;
         }
 
@@ -439,14 +523,17 @@ public sealed class AdCaptureDirector : MonoBehaviour
         float aimDistance = Mathf.Max(7f, FitDistance(2.4f, 0f));
         if (take == Take.Canon)
         {
-            FrameCanonEvolution(launcherPosition, aimDistance, clock - takeTime);
+            if (edit.PlayEvolution)
+                FrameCanonEvolution(launcherPosition, aimDistance, clock - takeTime);
+            else
+                FrameEquippedCanon(launcherPosition, aimDistance, clock - takeTime);
             return;
         }
 
-        float cut = Mathf.Clamp01((clock - takeTime) / 2f);
+        float cut = Mathf.Clamp01((clock - takeTime) / edit.MissLeadIn);
         Vector3 aimOffset = new Vector3(-aimDistance, 2.9f, Mathf.Lerp(-1.5f, -0.8f, cut));
         float lead = take == Take.Miss
-            ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - 1.7f) / 0.6f)
+            ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - edit.MissLeadIn + 0.3f) / 0.6f)
             : 2.4f;
         SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(lead, 0.7f, 0f), 1f);
     }
@@ -464,10 +551,30 @@ public sealed class AdCaptureDirector : MonoBehaviour
         Vector3 closeTarget = new Vector3(0f, Mathf.Lerp(0.28f, 0.72f, widen), 0f);
 
         // La caméra reprend l'axe de tir une fois le canon révélé.
-        float aim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(canonEvolutionEnd, CanonLeadIn, elapsed));
+        float aim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(canonEvolutionEnd, edit.CanonLeadIn, elapsed));
         Vector3 position = Vector3.Lerp(closePosition, new Vector3(-aimDistance, 2.9f, -0.7f), aim);
         Vector3 target = Vector3.Lerp(closeTarget, new Vector3(2.4f, 0.7f, 0f), aim);
         SetCamera(launcherPosition + position, launcherPosition + target, 1f);
+    }
+
+    private void FrameEquippedCanon(Vector3 launcherPosition, float aimDistance, float elapsed)
+    {
+        float approach = Mathf.SmoothStep(0f, 1f, elapsed / edit.CanonLeadIn);
+        float side = trailer == Trailer.Moon ? 1.5f : -1.5f;
+        Vector3 from = new Vector3(-Mathf.Max(6f, aimDistance * 0.82f), 1.55f, side);
+        Vector3 to = new Vector3(-aimDistance, 2.9f, side * 0.46f);
+        Vector3 offset = Vector3.Lerp(from, to, approach);
+        Vector3 focus = Vector3.Lerp(new Vector3(0.15f, 0.75f, 0f), new Vector3(2.4f, 0.7f, 0f), approach);
+        SetCamera(launcherPosition + offset, launcherPosition + focus, 1f);
+    }
+
+    private void FrameLunarEstablishing(float elapsed)
+    {
+        float travel = Mathf.Clamp01(elapsed / edit.Cuts[1].Start);
+        Vector3 position = launcher.transform.position + Vector3.Lerp(
+            new Vector3(-13f, 1.45f, 1.45f), new Vector3(12f, 5.3f, 1.1f), travel);
+        Vector3 focus = position + new Vector3(19f, Mathf.Lerp(3.35f, 2.5f, travel), -2.65f);
+        SetCamera(position, focus, 1f);
     }
 
     private void FollowOpeningShot(float elapsed)
@@ -533,7 +640,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         projectile.RunEnded -= OnShotEnded;
         projectile.ResetToLauncher();
         models.SetCaptureModel(-1);
-        if (hasTake && world != null) world.SetCaptureCity(false);
+        if (hasTake && world != null) world.SetCaptureTheme(null);
         launcher.enabled = launcherEnabled;
         view.fieldOfView = originalFieldOfView;
         if (gameCamera != null) gameCamera.enabled = cameraEnabled;

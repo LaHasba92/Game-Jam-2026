@@ -18,6 +18,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
     private static AdCaptureRecorder current;
 
     public static bool IsRecording => current != null && current.encoder != null;
+    internal static bool IsBusy => current != null;
 
     private MediaEncoder encoder;
     private RenderTexture screenTexture;
@@ -51,11 +52,11 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         Begin(45);
     }
 
-    public static void Begin(int seconds, Action onStarted = null)
+    public static void Begin(int seconds, Action onStarted = null, string fileLabel = null)
     {
         StopCurrent();
         current = new GameObject("CanonPOW — Enregistrement MP4").AddComponent<AdCaptureRecorder>();
-        current.StartCoroutine(current.PrepareRecording(seconds * FrameRate, onStarted));
+        current.StartCoroutine(current.PrepareRecording(seconds * FrameRate, onStarted, fileLabel));
     }
 
     public static void StopCurrent()
@@ -69,7 +70,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
 
     private static bool HasOutputResolution => Screen.width == OutputWidth && Screen.height == OutputHeight;
 
-    private IEnumerator PrepareRecording(int maxFrames, Action onStarted)
+    private IEnumerator PrepareRecording(int maxFrames, Action onStarted, string fileLabel)
     {
         if (AdCaptureGameView.TrySetResolution(OutputWidth, OutputHeight) || HasOutputResolution)
         {
@@ -82,7 +83,7 @@ public sealed class AdCaptureRecorder : MonoBehaviour
                 matchingFrames = HasOutputResolution ? matchingFrames + 1 : 0;
                 if (matchingFrames == 2)
                 {
-                    StartRecording(maxFrames, onStarted);
+                    StartRecording(maxFrames, onStarted, fileLabel);
                     yield break;
                 }
             } while (Time.realtimeSinceStartup < deadline);
@@ -92,12 +93,13 @@ public sealed class AdCaptureRecorder : MonoBehaviour
         StopCurrent();
     }
 
-    private void StartRecording(int maxFrames, Action onStarted)
+    private void StartRecording(int maxFrames, Action onStarted, string fileLabel)
     {
         try
         {
             Directory.CreateDirectory(Folder);
-            path = Path.Combine(Folder, $"CanonPOW-{DateTime.Now:yyyyMMdd-HHmmss-fff}.mp4");
+            string prefix = string.IsNullOrWhiteSpace(fileLabel) ? "CanonPOW" : $"CanonPOW-{fileLabel}";
+            path = Path.Combine(Folder, $"{prefix}-{DateTime.Now:yyyyMMdd-HHmmss-fff}.mp4");
             var video = new VideoTrackAttributes
             {
                 frameRate = new MediaRational(FrameRate),

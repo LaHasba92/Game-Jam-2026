@@ -17,6 +17,10 @@ public sealed class AdCaptureOverlay : MonoBehaviour
 
     private Canvas canvas;
     private CanvasGroup hookTitle;
+    private CanvasGroup trailerHook;
+    private RectTransform trailerHookPanel;
+    private Text trailerHookTitle;
+    private Text trailerHookSubtitle;
     private GameObject challenge;
     private GameObject gauge;
     private GameObject flightHud;
@@ -37,11 +41,37 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     public void ShowHook(float elapsed)
     {
         EnsureCanvas();
+        trailerHook.gameObject.SetActive(false);
         SetView(hookTitle.gameObject);
 
         float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.32f, elapsed));
         float fadeOut = Mathf.SmoothStep(1f, 0f, Mathf.InverseLerp(2.2f, 2.65f, elapsed));
         hookTitle.alpha = fadeIn * fadeOut;
+    }
+
+    public void ShowTrailerHook(string title, string subtitle, float elapsed, float duration)
+    {
+        if (elapsed < 0f || elapsed >= duration || string.IsNullOrWhiteSpace(title))
+        {
+            if (trailerHook != null) trailerHook.gameObject.SetActive(false);
+            return;
+        }
+
+        EnsureCanvas();
+        hookTitle.gameObject.SetActive(false);
+        trailerHook.gameObject.SetActive(true);
+        canvas.enabled = true;
+
+        bool hasSubtitle = !string.IsNullOrWhiteSpace(subtitle);
+        trailerHookTitle.text = title;
+        trailerHookTitle.rectTransform.anchoredPosition = new Vector2(5f, hasSubtitle ? 26f : 0f);
+        trailerHookSubtitle.gameObject.SetActive(hasSubtitle);
+        trailerHookSubtitle.text = subtitle ?? string.Empty;
+
+        float enter = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, Mathf.Min(0.22f, duration * 0.25f), elapsed));
+        float exit = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, Mathf.Min(0.26f, duration * 0.25f), duration - elapsed));
+        trailerHook.alpha = enter * exit;
+        trailerHookPanel.anchoredPosition = Vector2.down * (22f * (1f - enter) + 10f * (1f - exit));
     }
 
     public void ShowChallenge(float elapsed)
@@ -106,6 +136,7 @@ public sealed class AdCaptureOverlay : MonoBehaviour
     public void ShowEndCard()
     {
         EnsureCanvas();
+        trailerHook.gameObject.SetActive(false);
         SetView(endCard);
     }
 
@@ -115,7 +146,11 @@ public sealed class AdCaptureOverlay : MonoBehaviour
 
         canvas.enabled = false;
         hookTitle.gameObject.SetActive(false);
+        trailerHook.gameObject.SetActive(false);
         challenge.SetActive(false);
+        gauge.SetActive(false);
+        flightHud.SetActive(false);
+        endCard.SetActive(false);
         comboLabel.gameObject.SetActive(false);
         weakBanner.gameObject.SetActive(false);
         displayedWalls = -1;
@@ -194,6 +229,8 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         CreateGauge(root.transform);
         CreateFlightHud(root.transform);
         CreateEndCard(root.transform);
+        CreateTrailerHook(root.transform);
+        Clear();
     }
 
     private void CreateHook(Transform parent)
@@ -203,6 +240,30 @@ public sealed class AdCaptureOverlay : MonoBehaviour
         hookTitle = panel.gameObject.AddComponent<CanvasGroup>();
         ImageAt("Accent", panel, Gold, new Vector2(0f, 0.5f), new Vector2(5f, 91f), Vector2.right * 2.5f);
         TextAt("Un seul tir", panel, "UN SEUL TIR.", Ivory, 55, new Vector2(394f, 80f), Vector2.zero);
+    }
+
+    private void CreateTrailerHook(Transform parent)
+    {
+        trailerHookPanel = ImageAt("Accroche du montage", parent, new Color32(15, 23, 38, 232),
+            new Vector2(0.5f, 0.34f), new Vector2(820f, 176f), Vector2.zero).rectTransform;
+        trailerHook = trailerHookPanel.gameObject.AddComponent<CanvasGroup>();
+        ImageAt("Accent", trailerHookPanel, Gold, new Vector2(0f, 0.5f), new Vector2(8f, 176f), Vector2.right * 4f);
+
+        trailerHookTitle = TextAt("Titre", trailerHookPanel, string.Empty, Ivory, 68,
+            new Vector2(748f, 84f), new Vector2(5f, 26f));
+        trailerHookTitle.horizontalOverflow = HorizontalWrapMode.Wrap;
+        trailerHookTitle.verticalOverflow = VerticalWrapMode.Truncate;
+        trailerHookTitle.resizeTextForBestFit = true;
+        trailerHookTitle.resizeTextMinSize = 42;
+        trailerHookTitle.resizeTextMaxSize = 68;
+
+        trailerHookSubtitle = TextAt("Sous-titre", trailerHookPanel, string.Empty, Gold, 36,
+            new Vector2(748f, 52f), new Vector2(5f, -43f));
+        trailerHookSubtitle.horizontalOverflow = HorizontalWrapMode.Wrap;
+        trailerHookSubtitle.verticalOverflow = VerticalWrapMode.Truncate;
+        trailerHookSubtitle.resizeTextForBestFit = true;
+        trailerHookSubtitle.resizeTextMinSize = 25;
+        trailerHookSubtitle.resizeTextMaxSize = 36;
     }
 
     private void CreateChallenge(Transform parent)

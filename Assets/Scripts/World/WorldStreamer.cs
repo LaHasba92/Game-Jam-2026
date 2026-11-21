@@ -53,14 +53,14 @@ public class WorldStreamer : MonoBehaviour
     private WorldThemePresentation themes;
 
 #if UNITY_EDITOR
-    private bool captureCity;
+    private ThemeId? captureTheme;
 
-    public void SetCaptureCity(bool enabled)
+    public void SetCaptureTheme(ThemeId? theme)
     {
-        if (captureCity == enabled) return;
-        captureCity = enabled;
+        if (captureTheme == theme) return;
+        captureTheme = theme;
         if (themes != null && isActiveAndEnabled)
-            OnThemeChanged(enabled ? ThemeId.City : ThemeCatalog.Selected);
+            OnThemeChanged(theme ?? ThemeCatalog.Selected);
     }
 #endif
 
@@ -107,7 +107,7 @@ public class WorldStreamer : MonoBehaviour
     private void OnThemeChanged(ThemeId id)
     {
 #if UNITY_EDITOR
-        if (captureCity) id = ThemeId.City;
+        id = captureTheme ?? id;
 #endif
         bool changed = themes.Selected != id;
         themes.Apply(id);
