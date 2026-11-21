@@ -43,8 +43,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
     private static readonly TrailerEdit FullEdit = new TrailerEdit(SequenceSeconds, null, ThemeId.City, 2f, FullCanonLeadIn, true,
         (0f, Take.Intro), (3f, Take.Miss), (10f, Take.Shop), (15f, Take.Canon), (28f, Take.EndCard));
-    private static readonly TrailerEdit FrondeEdit = new TrailerEdit(22, "De-la-fronde-au-canon", ThemeId.City, 0.45f, FullCanonLeadIn, true,
-        (0f, Take.Miss), (5f, Take.Shop), (9f, Take.Canon), (20f, Take.EndCard));
+    private static readonly TrailerEdit FrondeEdit = new TrailerEdit(25, "De-la-fronde-au-canon", ThemeId.City, 0.45f, FullCanonLeadIn, true,
+        (0f, Take.Miss), (5f, Take.Shop), (9f, Take.Canon), (23f, Take.EndCard));
     private static readonly TrailerEdit SteelEdit = new TrailerEdit(15, "A-quelques-PV", ThemeId.City, 2f, 2.8f, false,
         (0f, Take.Intro), (3f, Take.Canon), (13f, Take.EndCard));
     private static readonly TrailerEdit MoonEdit = new TrailerEdit(15, "Defi-lunaire", ThemeId.Moon, 2f, 1.7f, false,

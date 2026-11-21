@@ -4,7 +4,7 @@ using UnityEditor;
 internal static class AdCaptureMenu
 {
     private const string Trailers = "CanonPOW/Capture pub/Trailers/";
-    private const string Fronde = Trailers + "01 - De la fronde au canon (22 s)/";
+    private const string Fronde = Trailers + "01 - De la fronde au canon (25 s)/";
     private const string Steel = Trailers + "02 - À quelques PV (15 s)/";
     private const string Moon = Trailers + "03 - Défi lunaire (15 s)/";
 
