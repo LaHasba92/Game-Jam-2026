@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using TMPro;
 using UnityEngine;
@@ -8,32 +9,73 @@ using UnityEngine;
 // A mettre sur l'ecran de resultat (Panel_Result), avec le texte « Money earned » dans la case.
 public class RunRewardManager : MonoBehaviour
 {
+    private const int GoldBoostCooldownSeconds = 5 * 60;
+    private const double GoldBoostMultiplier = 1.25;
+
     [SerializeField] private TMP_Text moneyText;              // le texte « Money earned »
     [SerializeField] private UpgradeDefinition money;         // la fiche Argent de Nathan
     [SerializeField] private float coinsPerMeter = 0.5f;
     [SerializeField] private int wallBonusBase = 10;
     [SerializeField] private int wallBonusStep = 10;
-    [SerializeField] private string saveFileName = "upgrade-test.json";   // la sauvegarde de Nathan
+    [SerializeField] private string saveFileName = UpgradeSaveStore.DefaultFileName;
 
-    private int lastReward;
+    private int baseReward;
     private bool doubled;
+    private bool usedBonusThisRun;
+    private long goldBoostNextClaimAt;
+    private long goldBoostForThisRun;
 
-    private string SavePath => Path.Combine(Application.persistentDataPath, saveFileName);
+    public int LastReward => doubled ? baseReward * 2 : baseReward;
+    public bool CanClaimDouble => !doubled && baseReward > 0;
+    public bool UsedPremiumBonus { get; private set; }
+    internal bool GoldBoostSaveAvailable { get; private set; }
+    internal bool GoldBoostQueued { get; private set; }
+    internal bool GoldBoostForNextRun => GoldBoostQueued && goldBoostForThisRun != goldBoostNextClaimAt;
+    internal long GoldBoostWaitSeconds => Math.Max(0, goldBoostNextClaimAt - UtcSeconds);
+    internal bool CanClaimGoldBoost => GoldBoostSaveAvailable && !GoldBoostForNextRun && GoldBoostWaitSeconds == 0;
+
+    private static long UtcSeconds => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
     private void Awake()
     {
         // L'ecran de resultat est cache pendant le jeu : on s'abonne des le debut, et on reste abonne.
         GameEvents.OnRunEnded += HandleRunEnded;
+        GameEvents.OnStateChanged += HandleStateChanged;
+        try
+        {
+            ReadGoldBoost(UpgradeSaveStore.Load(saveFileName));
+        }
+        catch (Exception exception) when (IsSaveError(exception))
+        {
+            Debug.LogWarning(exception.Message, this);
+        }
     }
 
     private void OnDestroy()
     {
         GameEvents.OnRunEnded -= HandleRunEnded;
+        GameEvents.OnStateChanged -= HandleStateChanged;
+    }
+
+    private void HandleStateChanged(GameState previous, GameState next)
+    {
+        if (next != GameState.Aiming || previous == GameState.Aiming) return;
+#if UNITY_EDITOR
+        if (AdCaptureDirector.IsPlayingTake) return;
+#endif
+        goldBoostForThisRun = GoldBoostQueued ? goldBoostNextClaimAt : 0L;
+        usedBonusThisRun = false;
+        UsedPremiumBonus = false;
+        baseReward = 0;
+        doubled = false;
     }
 
     private void HandleRunEnded(RunResult result)
     {
-        UpgradeSaveData data = Load();
+#if UNITY_EDITOR
+        if (AdCaptureDirector.IsPlayingTake) return;
+#endif
+        UpgradeSaveData data = UpgradeSaveStore.Load(saveFileName);
         float multiplier = money != null ? money.GetValue(Mathf.Max(1, data.moneyLevel)) : 1f;
 
         int wallBonus = 0;
@@ -41,49 +83,82 @@ public class RunRewardManager : MonoBehaviour
         {
             wallBonus += wallBonusBase + wallBonusStep * (n - 1);
         }
-        lastReward = Mathf.RoundToInt(Mathf.Max(0f, result.distance) * coinsPerMeter * multiplier) + wallBonus;
-        doubled = false;
+        int reward = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Max(0f, result.distance) * coinsPerMeter * multiplier) + wallBonus,
+            0, int.MaxValue / 2);
+        if (goldBoostForThisRun > 0)
+        {
+            reward = (int)Math.Min(int.MaxValue / 2,
+                Math.Round(reward * GoldBoostMultiplier, MidpointRounding.AwayFromZero));
+            // Un bonus activé pendant ce tir est conservé pour le suivant.
+            if (data.goldBoostNextClaimAt == goldBoostForThisRun) data.goldBoostQueued = false;
+        }
+        bool useBonus = !usedBonusThisRun && reward > 0 && data.premiumDoubleRewards > 0;
+        if (useBonus) data.premiumDoubleRewards--;
 
-        data.coins += lastReward;
+        data.coins = (int)Math.Min(int.MaxValue, (long)data.coins + (useBonus ? 2 * reward : reward));
         data.highestBrokenWall = Mathf.Max(data.highestBrokenWall, result.wallsBroken);
         data.highestReachedWall = Mathf.Max(data.highestReachedWall, result.wallsBroken + 1);
-        Save(data);
-        Show();
+        UpgradeSaveStore.Save(data, saveFileName);
+        ReadGoldBoost(data);
+        baseReward = reward;
+        doubled = useBonus;
+        UsedPremiumBonus = useBonus;
+        usedBonusThisRun |= useBonus;
+        Show(data.coins);
     }
+
+    internal bool TryClaimGoldBoost()
+    {
+        try
+        {
+            UpgradeSaveData data = UpgradeSaveStore.Load(saveFileName);
+            ReadGoldBoost(data);
+            if (!CanClaimGoldBoost) return false;
+
+            data.goldBoostNextClaimAt = UtcSeconds + GoldBoostCooldownSeconds;
+            data.goldBoostQueued = true;
+            UpgradeSaveStore.Save(data, saveFileName);
+            ReadGoldBoost(data);
+            return true;
+        }
+        catch (Exception exception) when (IsSaveError(exception))
+        {
+            Debug.LogWarning(exception.Message, this);
+            return false;
+        }
+    }
+
+    private void ReadGoldBoost(UpgradeSaveData data)
+    {
+        goldBoostNextClaimAt = data.goldBoostNextClaimAt;
+        GoldBoostQueued = data.goldBoostQueued;
+        GoldBoostSaveAvailable = true;
+    }
+
+    private static bool IsSaveError(Exception exception) =>
+        exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException;
 
     // Bouton « Claim X2 » (On Click) : la fausse pub de Hugo appellera ceci a la fin de la pub.
     public void ClaimDouble()
     {
-        if (doubled || lastReward <= 0)
-        {
-            return;
-        }
+        if (!CanClaimDouble) return;
+
+        UpgradeSaveData data = UpgradeSaveStore.Load(saveFileName);
+        data.coins = (int)Math.Min(int.MaxValue, (long)data.coins + baseReward);
+        UpgradeSaveStore.Save(data, saveFileName);
         doubled = true;
-        UpgradeSaveData data = Load();
-        data.coins += lastReward;
-        Save(data);
-        Show();
+        Show(data.coins);
     }
 
-    private void Show()
+    private void Show(int balance)
     {
-        int gain = doubled ? lastReward * 2 : lastReward;
         if (moneyText != null)
         {
-            moneyText.text = $"+{gain} pieces";
+            string goldBoost = goldBoostForThisRun > 0 ? "  ·  ×1,25" : "";
+            string premium = UsedPremiumBonus ? "  ·  Bonus ×2" : "";
+            moneyText.text = $"+{LastReward:N0} pièces{goldBoost}{premium}";
         }
-        GameEvents.RaiseCoinsChanged(Load().coins);
-    }
-
-    private UpgradeSaveData Load()
-    {
-        return File.Exists(SavePath)
-            ? JsonUtility.FromJson<UpgradeSaveData>(File.ReadAllText(SavePath))
-            : new UpgradeSaveData();
-    }
-
-    private void Save(UpgradeSaveData data)
-    {
-        File.WriteAllText(SavePath, JsonUtility.ToJson(data, true));
+        GameEvents.RaiseCoinsChanged(balance);
     }
 }

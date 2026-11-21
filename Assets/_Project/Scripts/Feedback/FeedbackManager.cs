@@ -35,11 +35,15 @@ public class FeedbackManager : MonoBehaviour
     private GUIStyle popupStyle;
     private GUIStyle hudStyle;
 
+    internal bool UseLegacyHud { get; set; } = true;
+    internal event System.Action<string, float> PopupShown;
+
     private void OnEnable()
     {
         if (projectile != null)
         {
             projectile.GroundTouched += ResetCombo;
+            projectile.BoostRingCollected += OnBoostRingCollected;
         }
         GameEvents.OnWallBroken += OnWallBroken;
         GameEvents.OnShotFired += OnShotFired;
@@ -51,6 +55,7 @@ public class FeedbackManager : MonoBehaviour
         if (projectile != null)
         {
             projectile.GroundTouched -= ResetCombo;
+            projectile.BoostRingCollected -= OnBoostRingCollected;
         }
         GameEvents.OnWallBroken -= OnWallBroken;
         GameEvents.OnShotFired -= OnShotFired;
@@ -105,10 +110,16 @@ public class FeedbackManager : MonoBehaviour
         ShowPopup(result.wallsBroken == 0 ? "Presque !" : $"{result.wallsBroken} MURS !");
     }
 
+    private void OnBoostRingCollected(float multiplier)
+    {
+        ShowPopup($"VITESSE ×{multiplier.ToString("0.##", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"))}");
+    }
+
     private void ShowPopup(string text)
     {
         popupText = text;
         popupStart = Time.unscaledTime;
+        PopupShown?.Invoke(text, popupDuration);
     }
 
     // --- Lacher : la fronde rebondit -------------------------------------------------------
@@ -142,6 +153,7 @@ public class FeedbackManager : MonoBehaviour
 
     private void OnGUI()
     {
+        if (!UseLegacyHud) return;
         DrawHud();
         float age = Time.unscaledTime - popupStart;
         if (age > popupDuration || string.IsNullOrEmpty(popupText))

@@ -15,6 +15,23 @@ public class LevelManager : MonoBehaviour
 
     public int WallsBroken => wallIndex;   // pour le score et les pieces (100 x n)
 
+#if UNITY_EDITOR
+    public LevelDefinition GetCaptureBoss(out int index)
+    {
+        index = walls == null ? -1 : System.Array.FindIndex(walls, level => level != null && level.maxHealth > 0);
+        return index >= 0 ? walls[index] : null;
+    }
+
+    public bool StartAdAtWall(int index)
+    {
+        if (walls == null || index < 0 || index >= walls.Length || walls[index] == null) return false;
+        wallIndex = index;
+        wall.HideAllWalls();
+        PlaceWall();
+        return true;
+    }
+#endif
+
     // Temporaire : sera remplace par GameEvents.OnLevelLoaded.
     public event System.Action<LevelDefinition> WallPlaced;
 
@@ -89,6 +106,15 @@ public class LevelManager : MonoBehaviour
         return walls[walls.Length - 1].wallDistance * Mathf.Pow(distanceGrowth, extra);
     }
 
+    // Le simulateur teste un premier impact sur un mur intact.
+    public bool CanBreakIntactWall(int index, WallHit hit)
+    {
+        LevelDefinition definition = walls != null && index >= 0 && index < walls.Length ? walls[index] : null;
+        int remainingHealth = definition == null ? 0
+            : WallRules.HealthAfterImpact(hit, definition.maxHealth, definition.maxHealth, definition.fullHealthBreakSpeed);
+        return WallRules.Evaluate(hit, 0f, 0f, remainingHealth).broken;
+    }
+
     // Les murs de la liste, puis des murs calcules a partir du dernier.
     private LevelDefinition GetWall(int index)
     {
@@ -105,7 +131,8 @@ public class LevelManager : MonoBehaviour
         generated.levelNumber = index + 1;
         generated.wallDistance = last.wallDistance * Mathf.Pow(distanceGrowth, extra);
         generated.zone = last.zone;
-        generated.wallPrefab = last.wallPrefab;
+        // Le visuel du mur renforcé reste réservé au niveau configuré.
+        generated.wallPrefab = last.maxHealth > 0 ? null : last.wallPrefab;
         return generated;
     }
 

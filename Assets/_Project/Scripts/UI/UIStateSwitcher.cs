@@ -7,6 +7,8 @@ using TMPro;
 // Les cases de texte sont facultatives : laisse-les vides si l'écran n'en a pas.
 public class UIStateSwitcher : MonoBehaviour
 {
+    private static UIStateSwitcher active;
+
     [Header("Panneaux (les Canvas de Hugo)")]
     [SerializeField] private GameObject menuPanel;     // accueil : titre, START, Shop
     [SerializeField] private GameObject shopPanel;     // boutique, ouverte par le bouton Shop
@@ -25,18 +27,39 @@ public class UIStateSwitcher : MonoBehaviour
     [SerializeField] private TMP_Text resultDistanceText;
     [SerializeField] private TMP_Text resultWallsText;
 
+    private GameplayHud gameplayHud;
+    private GamePanelPresentation panels;
+    private GameMenuOverlay gameMenu;
+    private bool shopOpen;
+
+    internal static bool IsModalOpen => active != null &&
+        (active.shopOpen || (active.gameMenu != null && active.gameMenu.IsOpen));
+
     void OnEnable()
     {
+        active = this;
+        if (gameMenu != null) gameMenu.gameObject.SetActive(true);
         GameEvents.OnStateChanged += HandleStateChanged;
     }
 
     void OnDisable()
     {
         GameEvents.OnStateChanged -= HandleStateChanged;
+        if (active == this) active = null;
+        if (gameMenu != null)
+        {
+            gameMenu.Close();
+            gameMenu.gameObject.SetActive(false);
+        }
     }
 
     void Start()
     {
+        if (hudPanel == null && projectile != null)
+            gameplayHud = GameplayHud.Create(gameObject.scene, projectile);
+        panels = new GamePanelPresentation(menuPanel, resultPanel, this);
+        gameMenu = GameMenuOverlay.Create(this, resultPanel != null ? resultPanel.GetComponent<RunRewardManager>() : null);
+
         // Au lancement, on affiche l'écran qui correspond à l'état actuel (l'Accueil)
         GameState state = GameManager.Instance != null ? GameManager.Instance.CurrentState : GameState.Home;
         Show(state);
@@ -44,28 +67,32 @@ public class UIStateSwitcher : MonoBehaviour
 
     void HandleStateChanged(GameState from, GameState to)
     {
+        gameMenu?.Close();
+        shopOpen = false;
         Show(to);
     }
 
     void Show(GameState state)
     {
-        SetActive(menuPanel, state == GameState.Home);
-        SetActive(shopPanel, false); // la boutique ne s'ouvre que par le bouton Shop
-        SetActive(hudPanel, state == GameState.Aiming || state == GameState.Flying);
-        SetActive(resultPanel, state == GameState.Result);
+        SetActive(menuPanel, !shopOpen && state == GameState.Home);
+        SetActive(shopPanel, shopOpen);
+        SetActive(hudPanel, !shopOpen && (state == GameState.Aiming || state == GameState.Flying));
+        SetActive(resultPanel, !shopOpen && state == GameState.Result);
+        if (gameplayHud != null) gameplayHud.Show(shopOpen ? GameState.Home : state);
 
         if (state == GameState.Result && GameManager.Instance != null)
         {
             RunResult run = GameManager.Instance.LastRun;
             SetText(resultDistanceText, $"{run.distance:N0} m");
             SetText(resultWallsText, $"{run.wallsBroken} mur(s) cassé(s)");
+            panels?.ShowResult(run);
         }
     }
 
     void Update()
     {
         // Le HUD se met à jour en direct pendant le vol
-        if (projectile == null || GameManager.Instance == null) return;
+        if (gameplayHud != null || projectile == null || GameManager.Instance == null) return;
         GameState state = GameManager.Instance.CurrentState;
         if (state != GameState.Aiming && state != GameState.Flying) return;
 
@@ -78,15 +105,16 @@ public class UIStateSwitcher : MonoBehaviour
 
     public void OpenShop()
     {
-        SetActive(shopPanel, true);
-        SetActive(menuPanel, false);
-        SetActive(resultPanel, false);   // la boutique peut aussi s'ouvrir depuis l'ecran de fin
+        if (shopPanel == null) return;
+        gameMenu?.Close();
+        shopOpen = true;
+        Show(GameManager.Instance != null ? GameManager.Instance.CurrentState : GameState.Home);
     }
 
     public void CloseShop()
     {
-        SetActive(shopPanel, false);
-        SetActive(menuPanel, true);
+        shopOpen = false;
+        Show(GameManager.Instance != null ? GameManager.Instance.CurrentState : GameState.Home);
     }
 
     public void Skip()
@@ -107,5 +135,17 @@ public class UIStateSwitcher : MonoBehaviour
     static void SetText(TMP_Text text, string value)
     {
         if (text != null) text.text = value;
+    }
+
+    private void LateUpdate()
+    {
+        panels?.Refresh();
+    }
+
+    private void OnDestroy()
+    {
+        if (gameplayHud != null) Destroy(gameplayHud.gameObject);
+        if (gameMenu != null) Destroy(gameMenu.gameObject);
+        panels?.Dispose();
     }
 }

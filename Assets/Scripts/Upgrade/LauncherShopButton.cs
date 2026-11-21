@@ -1,4 +1,3 @@
-using System.IO;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,11 +15,13 @@ public class LauncherShopButton : MonoBehaviour
     [SerializeField] private string saveFileName = "upgrade-test.json";
 
     private Button button;
-    private string SavePath => Path.Combine(Application.persistentDataPath, saveFileName);
-    private string OwnedKey => $"CanonPOW.Launcher.{launcherIndex}";
-
-    public bool Owned => launcherIndex == 0 || PlayerPrefs.GetInt(OwnedKey) == 1;
+    public LauncherDefinition Definition => definition;
+    public bool Owned => LauncherInventory.IsOwned(launcherIndex, Load());
     public bool Equipped => PlayerPrefs.GetInt(LauncherVisuals.SelectedKey, 0) == launcherIndex;
+    public bool CanSelect(UpgradeSaveData data) =>
+        definition != null && (uint)launcherIndex < 32 && !Equipped &&
+        (LauncherInventory.IsOwned(launcherIndex, data) ||
+            (definition.price >= 0 && data.coins >= definition.price && data.highestReachedWall >= definition.requiredWall));
 
     private void Awake()
     {
@@ -47,22 +48,26 @@ public class LauncherShopButton : MonoBehaviour
         Refresh();
     }
 
-    private void Click()
+    private void Click() => TrySelect();
+
+    public bool TrySelect()
     {
-        if (!Owned)
+        UpgradeSaveData data = Load();
+        if (!CanSelect(data)) return false;
+
+        bool purchasing = !LauncherInventory.IsOwned(launcherIndex, data);
+        if (purchasing)
         {
-            UpgradeSaveData data = Load();
-            if (data.coins < definition.price || data.highestReachedWall < definition.requiredWall)
-            {
-                return;
-            }
             data.coins -= definition.price;
-            File.WriteAllText(SavePath, JsonUtility.ToJson(data, true));
-            PlayerPrefs.SetInt(OwnedKey, 1);
+            data.purchasedLauncherMask |= 1 << launcherIndex;
+            UpgradeSaveStore.Save(data, saveFileName);
         }
         PlayerPrefs.SetInt(LauncherVisuals.SelectedKey, launcherIndex);   // acheter = equiper
         PlayerPrefs.Save();
-        GameEvents.RaiseCoinsChanged(Load().coins);                      // les autres boutons se mettent a jour
+        if (purchasing && launcherIndex == LauncherInventory.CannonIndex)
+            ProjectileTrails.PlayFireUnlock();
+        GameEvents.RaiseCoinsChanged(data.coins);
+        return true;
     }
 
     private void Refresh()
@@ -72,13 +77,12 @@ public class LauncherShopButton : MonoBehaviour
             return;
         }
         UpgradeSaveData data = Load();
-        bool canBuy = data.coins >= definition.price && data.highestReachedWall >= definition.requiredWall;
         string text;
         if (Equipped)
         {
             text = $"{definition.displayName} - equipe";
         }
-        else if (Owned)
+        else if (LauncherInventory.IsOwned(launcherIndex, data))
         {
             text = $"{definition.displayName} - equiper";
         }
@@ -92,14 +96,9 @@ public class LauncherShopButton : MonoBehaviour
         }
         if (button != null)
         {
-            button.interactable = !Equipped && (Owned || canBuy);
+            button.interactable = CanSelect(data);
         }
     }
 
-    private UpgradeSaveData Load()
-    {
-        return File.Exists(SavePath)
-            ? JsonUtility.FromJson<UpgradeSaveData>(File.ReadAllText(SavePath))
-            : new UpgradeSaveData();
-    }
+    private UpgradeSaveData Load() => UpgradeSaveStore.Load(saveFileName);
 }

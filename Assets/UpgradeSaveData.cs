@@ -1,4 +1,4 @@
-using UnityEngine;
+using System.Collections.Generic;
 
 [System.Serializable]
 public class UpgradeSaveData
@@ -12,4 +12,12 @@ public class UpgradeSaveData
     public bool ownsGiantSlingshot;
     public int momentumLevel;
     public int bounceLevel;
+    public int purchasedLauncherMask;
+    public int ownedThemes;
+    public int selectedTheme;
+    public bool hasMigratedThemes;
+    public int premiumDoubleRewards;
+    public long goldBoostNextClaimAt;
+    public bool goldBoostQueued;
+    public List<string> fulfilledPurchases;
 }

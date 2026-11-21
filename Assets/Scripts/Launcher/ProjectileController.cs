@@ -4,6 +4,8 @@ using UnityEngine;
 // impact sur les murs, fin de partie et bouton « Passer ».
 public class ProjectileController : MonoBehaviour
 {
+    private const float BoostRingSpeedMultiplier = 1.85f;
+
     [SerializeField] private WallController wall;
     [SerializeField] private WorldStreamer world;
     [SerializeField] private LevelManager levelManager;      // pour recommencer au mur 1 a chaque partie
@@ -30,6 +32,7 @@ public class ProjectileController : MonoBehaviour
 
     // Le boulet retombe sur le SOL (pas sur un trampoline ni un booster) : le combo repart a zero.
     public event System.Action GroundTouched;
+    internal event System.Action<float> BoostRingCollected;
 
     public bool IsFlying { get; private set; }
     public int WallsBroken { get; private set; }
@@ -54,6 +57,23 @@ public class ProjectileController : MonoBehaviour
     private bool hasPlayed;   // sans GameManager (sandbox) : la partie suivante repart du mur 1
     private Vector3 lastLaunchVelocity;
     private float lastBrokenWallX;
+    private ProjectileTrailEffects trailEffects;
+
+#if UNITY_EDITOR
+    private bool captureFlight;
+
+    public void LaunchAdTake(Vector3 from, Vector3 launchVelocity)
+    {
+        StartFlight(from, launchVelocity, false);
+        captureFlight = true;
+        transform.position = from;
+    }
+
+    public void HoldAdTake()
+    {
+        if (captureFlight) IsFlying = false;
+    }
+#endif
 
     private void OnEnable()
     {
@@ -65,6 +85,7 @@ public class ProjectileController : MonoBehaviour
     {
         GameEvents.OnStateChanged -= OnStateChanged;
         GameEvents.OnReviveRequested -= Revive;
+        if (trailEffects != null) trailEffects.Stop(true);
     }
 
     private void OnStateChanged(GameState from, GameState to)
@@ -84,6 +105,7 @@ public class ProjectileController : MonoBehaviour
         slowTimer = 0f;
         flightTime = 0f;
         IsFlying = true;
+        StartTrail();
     }
 
     private void Awake()
@@ -95,6 +117,10 @@ public class ProjectileController : MonoBehaviour
     // Debut d'une partie : le boulet revient sur le lanceur (appele par le GameManager de Benji).
     public void ResetToLauncher()
     {
+        if (trailEffects != null) trailEffects.Stop(true);
+#if UNITY_EDITOR
+        captureFlight = false;
+#endif
         IsFlying = false;
         WallsBroken = 0;
         position = startPosition;
@@ -110,6 +136,11 @@ public class ProjectileController : MonoBehaviour
     // Appele par le LauncherController au lacher.
     public void Launch(Vector3 from, Vector3 launchVelocity)
     {
+        StartFlight(from, launchVelocity, true);
+    }
+
+    private void StartFlight(Vector3 from, Vector3 launchVelocity, bool playTrail)
+    {
         if (hasPlayed && levelManager != null && GameManager.Instance == null)
         {
             levelManager.StartNewRun();   // en attendant le GameManager de Benji
@@ -121,11 +152,24 @@ public class ProjectileController : MonoBehaviour
         lastLaunchVelocity = launchVelocity;
         IsFlying = true;
         pointerStartX = Input.mousePosition.x;
+        if (playTrail) StartTrail();
+    }
+
+    private void StartTrail()
+    {
+        ProjectileTrail style = ProjectileTrails.Equipped;
+        if (style == ProjectileTrail.None) return;
+        transform.position = position;
+        if (trailEffects == null) trailEffects = gameObject.AddComponent<ProjectileTrailEffects>();
+        trailEffects.Begin(style);
     }
 
     private void Update()
     {
-        if (!IsFlying)
+#if UNITY_EDITOR
+        if (captureFlight) return;
+#endif
+        if (!IsFlying || UIStateSwitcher.IsModalOpen)
         {
             return;
         }
@@ -142,10 +186,11 @@ public class ProjectileController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (IsFlying)
+        if (IsFlying && !UIStateSwitcher.IsModalOpen)
         {
             Simulate(Time.fixedDeltaTime, true);
             transform.position = position;
+            if (trailEffects != null) trailEffects.SetSpeed(velocity.magnitude);
         }
     }
 
@@ -153,6 +198,9 @@ public class ProjectileController : MonoBehaviour
     private void Simulate(float dt, bool readInput)
     {
         flightTime += dt;
+#if UNITY_EDITOR
+        if (captureFlight) readInput = false;
+#endif
         if (readInput && !rolling)
         {
             // Pilotage direct : la vitesse de cote suit le doigt tout de suite (droite de l'ecran = -Z).
@@ -165,14 +213,21 @@ public class ProjectileController : MonoBehaviour
         }
 
         bool wasInAir = position.y > physics.radius + 0.01f;
+        Vector3 previousPosition = position;
         bool touchedGround = BallPhysics.Step(ref position, ref velocity, ref rolling, physics, dt, CorridorHalfWidth, Ceiling);
-        if (touchedGround && wasInAir && !IsOnBouncyObject())
+        bool useGroundObjects = true;
+#if UNITY_EDITOR
+        useGroundObjects = !captureFlight;
+#endif
+        if (useGroundObjects)
         {
-            GroundTouched?.Invoke();
+            if (touchedGround && wasInAir && !IsOnBouncyObject())
+                GroundTouched?.Invoke();
+            HandleGroundObjects(previousPosition);
         }
-        HandleGroundObjects();
         HandleWall();
 
+        if (!IsFlying) return;
         slowTimer = Mathf.Abs(velocity.x) < stopSpeed ? slowTimer + dt : 0f;
         if (slowTimer >= stopDelay)
         {
@@ -201,9 +256,9 @@ public class ProjectileController : MonoBehaviour
             && (obj.type == GroundObjectType.Trampoline || obj.type == GroundObjectType.Booster);
     }
 
-    private void HandleGroundObjects()
+    private void HandleGroundObjects(Vector3 previousPosition)
     {
-        if (world == null || !world.TryGetObjectAt(position, physics.radius, out GroundObject obj) || obj == lastObject)
+        if (world == null || !world.TryGetObjectAt(previousPosition, position, physics.radius, out GroundObject obj) || obj == lastObject)
         {
             return;
         }
@@ -221,10 +276,10 @@ public class ProjectileController : MonoBehaviour
                 velocity.x *= 1.25f;
                 velocity.z *= 1.25f;
                 break;
-            case GroundObjectType.Balloon:      // remonte de 15 m
-                velocity.y = Mathf.Sqrt(2f * physics.gravity * 15f);
-                rolling = false;
+            case GroundObjectType.BoostRing:
+                velocity *= BoostRingSpeedMultiplier;
                 world.Consume(obj);
+                BoostRingCollected?.Invoke(BoostRingSpeedMultiplier);
                 break;
             case GroundObjectType.Sticky:       // vitesse divisee par 2
                 velocity *= 0.5f;
@@ -258,6 +313,15 @@ public class ProjectileController : MonoBehaviour
         }
         else
         {
+#if UNITY_EDITOR
+            if (captureFlight)
+            {
+                position.x = wallX - physics.radius;
+                velocity = Vector3.zero;
+                EndRun();
+                return;
+            }
+#endif
             velocity.x *= result.exitSpeedFactor;
             position.x = wallX - physics.radius - 0.05f;
         }
@@ -266,6 +330,7 @@ public class ProjectileController : MonoBehaviour
     // « Passer » : calcule la fin du vol d'un coup, sans affichage.
     public void Skip()
     {
+        if (trailEffects != null) trailEffects.Stop(true);
         for (int i = 0; i < 100000 && IsFlying; ++i)
         {
             Simulate(Time.fixedDeltaTime, false);
@@ -276,12 +341,21 @@ public class ProjectileController : MonoBehaviour
     private void EndRun()
     {
         IsFlying = false;
+        if (trailEffects != null) trailEffects.Stop(false);
         RunResult result = new RunResult
         {
             distance = position.x,
             wallsBroken = WallsBroken,
         };
         Debug.Log($"FIN : {WallsBroken} murs casses, {position.x:0} m");
+#if UNITY_EDITOR
+        if (captureFlight)
+        {
+            captureFlight = false;
+            RunEnded?.Invoke(result);
+            return; // une prise rejouable ne crédite aucun gain ni record
+        }
+#endif
         RunEnded?.Invoke(result);
         GameEvents.RaiseRunEnded(result);   // le GameManager passe en Resultat
     }

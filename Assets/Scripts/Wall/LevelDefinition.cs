@@ -10,4 +10,10 @@ public class LevelDefinition : ScriptableObject
     public int zone = 1;                 // 1 Campagne, 2 Ville, 3 Chateau
     public string wallStyle = "Bois";
     public GameObject wallPrefab;        // le mur de ce niveau (avec WallVisualSet) ; vide = mur par defaut
+
+    [Header("Mur renforcé")]
+    [Tooltip("PV du mur. Une valeur de 0 utilise la règle de casse des murs classiques.")]
+    [Min(0)] public int maxHealth;
+    [Tooltip("Vitesse en m/s nécessaire pour détruire ce mur à pleine vie en un impact.")]
+    [Min(1f)] public float fullHealthBreakSpeed = 30f;
 }

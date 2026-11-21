@@ -29,8 +29,10 @@ public static class MaterialFixer
         foreach (string guid in guids)
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (path.StartsWith("Assets/Resources/WorldThemes/", System.StringComparison.Ordinal))
+                continue;
             Material m = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (m == null || ShouldSkip(m.shader.name))
+            if (m == null || m.shader == null || ShouldSkip(m.shader.name))
             {
                 continue;   // shader special (textes, interface, ciel, particules) : on n'y touche pas
             }
@@ -107,7 +109,7 @@ public static class MaterialFixer
     private static bool ShouldSkip(string shader)
     {
         string s = shader.ToLower();
-        return s.Contains("textmeshpro") || s.StartsWith("ui/")
+        return s.StartsWith("canonpow/") || s.Contains("textmeshpro") || s.StartsWith("ui/")
             || s.Contains("sprite") || s.Contains("skybox") || s.Contains("particle") || s.StartsWith("shader graphs");
     }
 }

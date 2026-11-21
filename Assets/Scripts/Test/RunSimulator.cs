@@ -34,7 +34,8 @@ public static class RunSimulator
     private const float Dt = 0.02f;
 
     // wallDistance(i) = distance du mur n° i (0 = premier), fournie par LevelManager.
-    public static Result Simulate(Settings s, Func<int, float> wallDistance, Random random)
+    public static Result Simulate(Settings s, Func<int, float> wallDistance, Random random,
+        Func<int, WallHit, bool> canBreakWall = null)
     {
         // Le joueur moyen : vise dans les 10 derniers degres permis, lache la jauge vers 85 %.
         double angle = (s.maxElevation - 10.0 * random.NextDouble()) * Math.PI / 180.0;
@@ -74,7 +75,8 @@ public static class RunSimulator
             double wallX = wallDistance(walls);
             if (x + Radius >= wallX)
             {
-                if (rolling) break;                      // un boulet qui roule ne casse pas : fin
+                WallHit hit = new WallHit { impactSpeed = (float)Math.Sqrt(vx * vx + vy * vy), rolling = rolling };
+                if (!(canBreakWall?.Invoke(walls, hit) ?? !rolling)) break;
                 ++walls;
                 bonus += s.wallBonusBase + s.wallBonusStep * (walls - 1);
                 vx *= s.elan;
@@ -95,14 +97,15 @@ public static class RunSimulator
     }
 
     // Moyennes sur n parties (meme graine = memes resultats, pour comparer deux reglages).
-    public static string Report(Settings s, Func<int, float> wallDistance, int n = 1000, int seed = 1)
+    public static string Report(Settings s, Func<int, float> wallDistance, int n = 1000, int seed = 1,
+        Func<int, WallHit, bool> canBreakWall = null)
     {
         Random random = new Random(seed);
         double walls = 0, distance = 0, coins = 0;
         int zero = 0, best = 0;
         for (int i = 0; i < n; ++i)
         {
-            Result r = Simulate(s, wallDistance, random);
+            Result r = Simulate(s, wallDistance, random, canBreakWall);
             walls += r.walls; distance += r.distance; coins += r.coins;
             if (r.walls == 0) ++zero;
             best = Math.Max(best, r.walls);

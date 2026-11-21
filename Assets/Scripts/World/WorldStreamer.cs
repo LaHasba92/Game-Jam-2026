@@ -22,6 +22,7 @@ public class WorldStreamer : MonoBehaviour
     [SerializeField] private Transform target;            // le boulet (en sandbox : la camera)
     [SerializeField] private LevelManager levelManager;   // pour remettre la piste a zero a chaque partie
     [SerializeField] private GameObject chunkPrefab;      // un troncon de sol de 50 m, pivot au debut
+    [SerializeField] private GameObject forestChunkPrefab; // active les thèmes sur la piste du jeu
     [SerializeField] private float chunkLength = 50f;
     [SerializeField] private int chunksAhead = 6;         // 300 m de sol visibles devant
     [SerializeField] private int chunksBehind = 1;
@@ -33,13 +34,14 @@ public class WorldStreamer : MonoBehaviour
     {
         new SpawnRule { type = GroundObjectType.Trampoline, minGap = 30, maxGap = 60 },
         new SpawnRule { type = GroundObjectType.Booster, minGap = 60, maxGap = 120, fromDistance = 100 },
-        new SpawnRule { type = GroundObjectType.Balloon, minGap = 150, maxGap = 300, fromDistance = 190, minHeight = 2, maxHeight = 6 },
+        new SpawnRule { type = GroundObjectType.BoostRing, minGap = 150, maxGap = 300, fromDistance = 190, minHeight = 2, maxHeight = 6 },
         new SpawnRule { type = GroundObjectType.Sticky, minGap = 150, maxGap = 300, fromDistance = 530 },
     };
 
     private class Chunk
     {
         public Transform transform;
+        public GameObject visual;
         public float start;
         public readonly List<GroundObject> objects = new List<GroundObject>();
     }
@@ -48,17 +50,78 @@ public class WorldStreamer : MonoBehaviour
     private readonly Dictionary<GroundObjectType, Stack<GroundObject>> pool = new Dictionary<GroundObjectType, Stack<GroundObject>>();
     private float[] nextSpawn;          // prochaine distance d'apparition, par regle
     private System.Random random = new System.Random();
+    private WorldThemePresentation themes;
 
-    private void OnEnable()  { if (levelManager != null) levelManager.WallPlaced += OnWallPlaced; }
-    private void OnDisable() { if (levelManager != null) levelManager.WallPlaced -= OnWallPlaced; }
+#if UNITY_EDITOR
+    private ThemeId? captureTheme;
+
+    public void SetCaptureTheme(ThemeId? theme)
+    {
+        if (captureTheme == theme) return;
+        captureTheme = theme;
+        if (themes != null && isActiveAndEnabled)
+            OnThemeChanged(theme ?? ThemeCatalog.Selected);
+    }
+#endif
+
+    private void OnEnable()
+    {
+        if (levelManager != null) levelManager.WallPlaced += OnWallPlaced;
+        if (themes == null) return;
+        ThemeCatalog.Changed += OnThemeChanged;
+        OnThemeChanged(ThemeCatalog.Selected);
+    }
+
+    private void OnDisable()
+    {
+        if (levelManager != null) levelManager.WallPlaced -= OnWallPlaced;
+        if (themes == null) return;
+        ThemeCatalog.Changed -= OnThemeChanged;
+        themes.RestoreSkyAndLight();
+    }
+
+    private void OnDestroy() => themes?.Release();
 
     private void Awake()
     {
+        if (forestChunkPrefab != null)
+            themes = new WorldThemePresentation(chunkPrefab, forestChunkPrefab, chunkLength, corridorWidth);
+
         for (int i = 0; i < chunksBehind + chunksAhead; ++i)
         {
-            chunks.Add(new Chunk { transform = Instantiate(chunkPrefab, transform).transform });
+            Transform root;
+            if (themes == null)
+            {
+                root = Instantiate(chunkPrefab, transform).transform;
+            }
+            else
+            {
+                root = new GameObject("Tronçon de piste").transform;
+                root.SetParent(transform, false);
+            }
+            chunks.Add(new Chunk { transform = root });
         }
         ResetTrack();
+    }
+
+    private void OnThemeChanged(ThemeId id)
+    {
+#if UNITY_EDITOR
+        id = captureTheme ?? id;
+#endif
+        bool changed = themes.Selected != id;
+        themes.Apply(id);
+        foreach (Chunk chunk in chunks)
+        {
+            if (!changed && chunk.visual != null) continue;
+            if (chunk.visual != null)
+            {
+                chunk.visual.SetActive(false);
+                Destroy(chunk.visual);
+            }
+            chunk.visual = themes.CreateVisual(chunk.transform);
+            themes.UpdateVisual(chunk.visual, chunk.start);
+        }
     }
 
     private void OnWallPlaced(LevelDefinition wall)
@@ -105,6 +168,7 @@ public class WorldStreamer : MonoBehaviour
         ReleaseObjects(chunk);
         chunk.start = start;
         chunk.transform.position = new Vector3(start, 0f, 0f);
+        themes?.UpdateVisual(chunk.visual, start);
         if (start < 0f)
         {
             return;   // pas d'objets derriere le lanceur
@@ -176,13 +240,18 @@ public class WorldStreamer : MonoBehaviour
     // --- Pour Andy : trouver les objets que le boulet touche ---------------------------------
 
     // Renvoie l'objet actif le plus proche de « position » s'il est a portee (radius de l'objet + ballRadius).
-    public bool TryGetObjectAt(Vector3 position, float ballRadius, out GroundObject found)
+    public bool TryGetObjectAt(Vector3 position, float ballRadius, out GroundObject found) =>
+        TryGetObjectAt(position, position, ballRadius, out found);
+
+    public bool TryGetObjectAt(Vector3 previous, Vector3 position, float ballRadius, out GroundObject found)
     {
         found = null;
         float best = float.MaxValue;
+        float from = Mathf.Min(previous.x, position.x);
+        float to = Mathf.Max(previous.x, position.x);
         foreach (Chunk chunk in chunks)
         {
-            if (position.x < chunk.start - 5f || position.x > chunk.start + chunkLength + 5f)
+            if (to < chunk.start - 5f || from > chunk.start + chunkLength + 5f)
             {
                 continue;
             }
@@ -193,7 +262,17 @@ public class WorldStreamer : MonoBehaviour
                     continue;
                 }
                 float d;
-                if (obj.fullWidth)
+                if (obj.type == GroundObjectType.BoostRing)
+                {
+                    // Vérifie le passage dans le plan YZ même si un pas traverse l'anneau entier.
+                    Vector3 center = obj.transform.position;
+                    if (center.x < from - ballRadius || center.x > to + ballRadius) continue;
+                    float fraction = Mathf.InverseLerp(previous.x, position.x, center.x);
+                    Vector3 offset = Vector3.Lerp(previous, position, fraction) - center;
+                    d = new Vector2(offset.y, offset.z).magnitude;
+                    if (d > obj.radius + ballRadius) continue;
+                }
+                else if (obj.fullWidth)
                 {
                     // Pleine largeur : il suffit d'etre au-dessus, pres du sol, sur sa longueur
                     float dx = Mathf.Abs(position.x - obj.transform.position.x);
@@ -215,7 +294,7 @@ public class WorldStreamer : MonoBehaviour
         return found != null;
     }
 
-    // Une piece ramassee (ou un ballon utilise) disparait jusqu'au prochain recyclage.
+    // Une pièce ou un anneau utilisé disparaît jusqu'au prochain recyclage.
     public void Consume(GroundObject obj)
     {
         obj.gameObject.SetActive(false);

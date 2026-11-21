@@ -13,9 +13,28 @@ public class LauncherVisuals : MonoBehaviour
 
     private int shown = -1;
 
+#if UNITY_EDITOR
+    private int captureModel = -1;
+
+    public bool TryGetCaptureModel(int index, out GameObject model)
+    {
+        model = models != null && index >= 0 && index < models.Length ? models[index] : null;
+        return model != null;
+    }
+
+    public void SetCaptureModel(int index)
+    {
+        captureModel = index;
+        Show(captureModel >= 0 ? captureModel : PlayerPrefs.GetInt(SelectedKey, 0));
+    }
+#endif
+
     private void Update()
     {
         int selected = PlayerPrefs.GetInt(SelectedKey, 0);   // un simple int : pas cher a lire
+#if UNITY_EDITOR
+        if (captureModel >= 0) selected = captureModel;
+#endif
         if (selected != shown)
         {
             Show(selected);

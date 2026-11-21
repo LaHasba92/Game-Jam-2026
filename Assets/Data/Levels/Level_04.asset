@@ -15,5 +15,5 @@ MonoBehaviour:
   levelNumber: 4
   wallDistance: 76
   zone: 1
-  wallStyle: Bois renforce
+  wallStyle: Briques
   wallPrefab: {fileID: 0}

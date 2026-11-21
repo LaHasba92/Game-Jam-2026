@@ -15,5 +15,5 @@ MonoBehaviour:
   levelNumber: 1
   wallDistance: 50
   zone: 1
-  wallStyle: Bois
+  wallStyle: Briques
   wallPrefab: {fileID: 0}
