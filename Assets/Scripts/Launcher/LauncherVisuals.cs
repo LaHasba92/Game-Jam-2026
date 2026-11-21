@@ -16,6 +16,12 @@ public class LauncherVisuals : MonoBehaviour
 #if UNITY_EDITOR
     private int captureModel = -1;
 
+    public bool TryGetCaptureModel(int index, out GameObject model)
+    {
+        model = models != null && index >= 0 && index < models.Length ? models[index] : null;
+        return model != null;
+    }
+
     public void SetCaptureModel(int index)
     {
         captureModel = index;

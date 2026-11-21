@@ -13,6 +13,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public const float SlowPreviewSpeed = 0.5f;
     private const float TransitionHalfDuration = 0.18f;
     private const float CanonLeadIn = 6.25f;
+    private const float CanonEvolutionStart = 0.3f;
+    private const float CanonEvolutionDuration = 5f;
     private const float OpeningFlightEnd = 2.9f;
     private static readonly float[] CutTimes = { 3f, 10f, 15f, 28f };
 
@@ -23,6 +25,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     public static float PresentationDelta => current != null ? current.frameDelta : Time.unscaledDeltaTime;
 
     private readonly Dictionary<Canvas, bool> sceneCanvases = new Dictionary<Canvas, bool>();
+    private readonly AdCaptureEvolution evolution = new AdCaptureEvolution();
     private Camera view;
     private CameraDirector gameCamera;
     private GameManager game;
@@ -43,6 +46,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private float frameDelta;
     private float previewSpeed = 1f;
     private float takeTime;
+    private float canonEvolutionEnd;
     private float sequenceStart = -1f;
     private bool manualTransition;
     private int shopCue;
@@ -231,6 +235,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
     private void StartTake(Take next)
     {
         StopAllCoroutines();
+        evolution.Clear();
+        AdCaptureAudio.StopEvolution();
         StopFeedback();
         Time.timeScale = AdCaptureRecorder.IsRecording ? 1f : previewSpeed;
         hasTake = true;
@@ -244,12 +250,13 @@ public sealed class AdCaptureDirector : MonoBehaviour
         hasFired = false;
         openingShot = false;
         impactTime = -1f;
+        canonEvolutionEnd = CanonEvolutionStart + CanonEvolutionDuration;
 
         game.ChangeState(GameState.Home);
         game.Play(); // remet le projectile, la piste et les murs au départ
         take = next;
         takeTime = clock;
-        models.SetCaptureModel(next == Take.Canon ? 4 : 0);
+        models.SetCaptureModel(0);
         SetSceneUi(false);
         AdCaptureAudio.PlayCue(next == Take.EndCard ? AdCaptureAudio.Cue.End : AdCaptureAudio.Cue.Whoosh);
 
@@ -280,6 +287,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
             yield break;
         }
 
+        if (canon) yield return PlayEvolution();
+
         float leadIn = canon ? CanonLeadIn : 2f;
         while (clock - takeTime < leadIn) yield return null;
 
@@ -304,6 +313,33 @@ public sealed class AdCaptureDirector : MonoBehaviour
             gaugeMultiplier = canon ? 1.25f : 0.9f,
             launcherIndex = canon ? 4 : 0,
         });
+    }
+
+    private IEnumerator PlayEvolution()
+    {
+        while (clock - takeTime < CanonEvolutionStart) yield return null;
+
+        if (!models.TryGetCaptureModel(0, out GameObject slingshot) ||
+            !models.TryGetCaptureModel(4, out GameObject cannon) ||
+            !evolution.Begin(launcher.transform, slingshot, cannon, CanonEvolutionDuration))
+        {
+            Debug.LogWarning("Capture pub : la transformation exige les deux modèles du lanceur et le shader Unlit.");
+            canonEvolutionEnd = CanonEvolutionStart + 0.5f;
+            models.SetCaptureModel(4);
+            yield break;
+        }
+
+        float started = clock;
+        canonEvolutionEnd = started - takeTime + CanonEvolutionDuration;
+        AdCaptureAudio.PlayCue(AdCaptureAudio.Cue.Evolution, AdCaptureRecorder.IsRecording ? 1f : previewSpeed);
+        while (clock - started < CanonEvolutionDuration)
+        {
+            evolution.Sample(clock - started);
+            yield return null;
+        }
+
+        evolution.Clear();
+        models.SetCaptureModel(4);
     }
 
     private bool TryPrepareShot(bool canon, Vector3 origin, out Vector3 velocity)
@@ -400,11 +436,7 @@ public sealed class AdCaptureDirector : MonoBehaviour
         float aimDistance = Mathf.Max(7f, FitDistance(2.4f, 0f));
         if (take == Take.Canon)
         {
-            float reveal = Mathf.SmoothStep(0f, 1f, (clock - takeTime) / CanonLeadIn);
-            Vector3 offset = Vector3.Lerp(new Vector3(-aimDistance * 0.82f, 2.15f, -1.5f),
-                new Vector3(-aimDistance, 2.9f, -0.7f), reveal);
-            Vector3 aim = new Vector3(Mathf.Lerp(0.4f, 2.4f, reveal), 0.7f, 0f);
-            SetCamera(launcherPosition + offset, launcherPosition + aim, 1f);
+            FrameCanonEvolution(launcherPosition, aimDistance, clock - takeTime);
             return;
         }
 
@@ -414,6 +446,25 @@ public sealed class AdCaptureDirector : MonoBehaviour
             ? Mathf.SmoothStep(0.6f, 2.4f, (clock - takeTime - 1.7f) / 0.6f)
             : 2.4f;
         SetCamera(launcherPosition + aimOffset, launcherPosition + new Vector3(lead, 0.7f, 0f), 1f);
+    }
+
+    private void FrameCanonEvolution(Vector3 launcherPosition, float aimDistance, float elapsed)
+    {
+        // La fronde occupe le premier plan. Le cadre s'ouvre avant que sa silhouette
+        // alterne avec celle du canon, plus large, et accompagne les rayons.
+        float widen = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1.35f, elapsed));
+        float slide = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, canonEvolutionEnd, elapsed));
+        float slingDistance = Mathf.Max(4.4f, FitDistance(0.95f, 1.65f) + 0.5f);
+        float canonDistance = Mathf.Max(8.5f, FitDistance(2.13f, 1.55f) + 1.05f);
+        Vector3 closePosition = new Vector3(-Mathf.Lerp(slingDistance, canonDistance, widen),
+            Mathf.Lerp(1.35f, 2.35f, widen), Mathf.Lerp(-1.15f, -1.55f, slide));
+        Vector3 closeTarget = new Vector3(0f, Mathf.Lerp(0.28f, 0.72f, widen), 0f);
+
+        // La caméra reprend l'axe de tir une fois le canon révélé.
+        float aim = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(canonEvolutionEnd, CanonLeadIn, elapsed));
+        Vector3 position = Vector3.Lerp(closePosition, new Vector3(-aimDistance, 2.9f, -0.7f), aim);
+        Vector3 target = Vector3.Lerp(closeTarget, new Vector3(2.4f, 0.7f, 0f), aim);
+        SetCamera(launcherPosition + position, launcherPosition + target, 1f);
     }
 
     private void FollowOpeningShot(float elapsed)
@@ -468,6 +519,8 @@ public sealed class AdCaptureDirector : MonoBehaviour
 
         current = null;
         StopAllCoroutines();
+        evolution.Clear();
+        AdCaptureAudio.StopEvolution();
         AdCaptureRecorder.StopCurrent();
         if (!Application.isPlaying || game == null || projectile == null || models == null ||
             launcher == null || view == null || overlay == null)

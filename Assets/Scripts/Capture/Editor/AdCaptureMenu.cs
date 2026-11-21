@@ -21,7 +21,7 @@ internal static class AdCaptureMenu
     [MenuItem("CanonPOW/Capture pub/04 - Boutique (F9)")]
     private static void Shop() => Play(AdCaptureDirector.Take.Shop);
 
-    [MenuItem("CanonPOW/Capture pub/05 - Canon puis mur a quelques PV (F10)")]
+    [MenuItem("CanonPOW/Capture pub/05 - Transformation du canon et tir (F10)")]
     private static void Canon() => Play(AdCaptureDirector.Take.Canon);
 
     [MenuItem("CanonPOW/Capture pub/06 - Carton final (F11)")]

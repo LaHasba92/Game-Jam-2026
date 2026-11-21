@@ -1,22 +1,25 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 // Les mêmes échantillons sont joués dans Unity et mélangés à chaque image du MP4.
 public sealed class AdCaptureAudio : MonoBehaviour
 {
-    public enum Cue { Whoosh, Slingshot, Cannon, Break, WeakFail, Steel, Confirm, End, GlassBreak, SteelBreak }
+    public enum Cue { Whoosh, Slingshot, Cannon, Break, WeakFail, Steel, Confirm, End, GlassBreak, SteelBreak, Evolution }
 
     public const int SampleRate = 48000;
     private const int Channels = 2;
     private const int MaxVoices = 24;
     private const float Tau = 2f * Mathf.PI;
+    private const string EvolutionClipPath = "Assets/Scripts/Capture/Editor/Art/Evolution.wav";
     private static AdCaptureAudio instance;
 
     private readonly Dictionary<Cue, Sound> sounds = new Dictionary<Cue, Sound>();
     private readonly List<Voice> voices = new List<Voice>(MaxVoices);
     private AudioSource source;
+    private AudioSource evolutionSource;
     private bool mixing;
 
     private sealed class Sound
@@ -32,17 +35,28 @@ public sealed class AdCaptureAudio : MonoBehaviour
         public int Position;
     }
 
-    public static void PlayCue(Cue cue)
+    public static void PlayCue(Cue cue, float playbackSpeed = 1f)
     {
         if (!Application.isPlaying) return;
 
         AdCaptureAudio audio = GetInstance();
         Sound sound = audio.sounds[cue];
-        audio.source.PlayOneShot(sound.Clip);
+        AudioSource cueSource = cue == Cue.Evolution ? audio.evolutionSource : audio.source;
+        cueSource.pitch = playbackSpeed;
+        cueSource.PlayOneShot(sound.Clip);
         if (!audio.mixing) return;
 
         if (audio.voices.Count == MaxVoices) audio.voices.RemoveAt(0);
         audio.voices.Add(new Voice { Sound = sound });
+    }
+
+    public static void StopEvolution()
+    {
+        if (instance == null || instance.evolutionSource == null) return;
+
+        instance.evolutionSource.Stop();
+        Sound sound = instance.sounds[Cue.Evolution];
+        instance.voices.RemoveAll(voice => voice.Sound == sound);
     }
 
     public static void PlayWallBreak(WallSurface surface)
@@ -61,6 +75,7 @@ public sealed class AdCaptureAudio : MonoBehaviour
 
         AdCaptureAudio audio = GetInstance();
         audio.source.Stop();
+        audio.evolutionSource.Stop();
         audio.voices.Clear();
         audio.mixing = true;
     }
@@ -80,15 +95,22 @@ public sealed class AdCaptureAudio : MonoBehaviour
 
         var root = new GameObject("CanonPOW — Sons de capture");
         instance = root.AddComponent<AdCaptureAudio>();
-        instance.source = root.AddComponent<AudioSource>();
-        instance.source.playOnAwake = false;
-        instance.source.spatialBlend = 0f;
-        instance.source.ignoreListenerPause = true;
+        instance.source = AddAudioSource(root);
+        instance.evolutionSource = AddAudioSource(root);
         foreach (Cue cue in Enum.GetValues(typeof(Cue)))
         {
             instance.sounds.Add(cue, CreateSound(cue));
         }
         return instance;
+    }
+
+    private static AudioSource AddAudioSource(GameObject root)
+    {
+        AudioSource audio = root.AddComponent<AudioSource>();
+        audio.playOnAwake = false;
+        audio.spatialBlend = 0f;
+        audio.ignoreListenerPause = true;
+        return audio;
     }
 
     private void Mix(float[] stereo, int count)
@@ -135,6 +157,7 @@ public sealed class AdCaptureAudio : MonoBehaviour
             Cue.Break => WallVisualSet.LoadBreakClip(WallSurface.Brick),
             Cue.GlassBreak => WallVisualSet.LoadBreakClip(WallSurface.Glass),
             Cue.SteelBreak => WallVisualSet.LoadBreakClip(WallSurface.Steel),
+            Cue.Evolution => AssetDatabase.LoadAssetAtPath<AudioClip>(EvolutionClipPath),
             _ => null
         };
         if (imported != null && imported.channels == Channels && imported.frequency == SampleRate)
@@ -146,6 +169,7 @@ public sealed class AdCaptureAudio : MonoBehaviour
 
         if (cue == Cue.GlassBreak) cue = Cue.Break;
         if (cue == Cue.SteelBreak) cue = Cue.Steel;
+        if (cue == Cue.Evolution) cue = Cue.Whoosh;
         float duration = Duration(cue);
         int sampleCount = Mathf.CeilToInt(duration * SampleRate);
         var samples = new float[sampleCount * Channels];
